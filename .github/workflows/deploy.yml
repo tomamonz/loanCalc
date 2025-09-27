@@ -1,0 +1,42 @@
+name: Deploy to Server
+
+on:
+    push:
+        branches:
+            - master
+
+jobs:
+    deploy:
+        runs-on: ubuntu-latest
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v4
+
+            - name: Setup SSH
+              uses: webfactory/ssh-agent@v0.9.0
+              with:
+                  ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
+            - name: Deploy and Restart Docker Container
+              env:
+                  SSH_HOST: ${{ secrets.SSH_HOST }}
+                  SSH_USER: tom
+                  APP_NAME: loan-calc-app
+                  CONTAINER_NAME: my-calc-container
+                  APP_PATH: /home/tom/calc_app/calc
+              run: |
+                  # 1. Logowanie przez SSH i przejście do katalogu aplikacji
+                  ssh -o StrictHostKeyChecking=no ${SSH_USER}@${SSH_HOST} "cd ${APP_PATH} && \
+
+                  # 2. Zatrzymaj i usuń istniejący kontener
+                  docker stop ${CONTAINER_NAME} || true && \
+                  docker rm ${CONTAINER_NAME} || true && \
+
+                  # 3. Usuń stary obraz, aby mieć pewność, że zbuduje się nowy
+                  docker rmi ${APP_NAME} || true && \
+
+                  # 4. Zbuduj nowy obraz Dockera
+                  docker build -t ${APP_NAME} . && \
+
+                  # 5. Uruchom nowy kontener z tą samą konfiguracją restartu
+                  docker run -d -p 8710:8710 --name ${CONTAINER_NAME} --restart unless-stopped ${APP_NAME}"
