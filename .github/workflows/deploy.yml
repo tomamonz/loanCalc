@@ -1,54 +1,73 @@
-name: Deploy to Server (Docker Swarm)
+name: Deploy to Server
 
 on:
     push:
-        branches:
-            - master
+        branches: [master]
+
+permissions:
+    contents: read
+
+concurrency:
+    group: deploy-calc-stack
+    cancel-in-progress: true
+
+defaults:
+    run:
+        shell: bash -euo pipefail
 
 jobs:
     deploy:
         runs-on: self-hosted
+        env:
+            APP_PATH: /opt/calc_app
+            STACK_NAME: calc_stack
+            IMAGE_NAME: loan-calc-app # matches your compose: image: loan-calc-app:latest
+            IMAGE_TAG: latest
 
         steps:
-            - name: Checkout code
+            - name: Checkout
               uses: actions/checkout@v4
+              with:
+                  fetch-depth: 0
 
-            - name: Setup Deployment Environment
-              env:
-                  APP_PATH: /opt/calc_app
+            - name: Sync build context to server path
               run: |
-                  echo "Tworzenie/Czyszczenie katalogu docelowego: ${APP_PATH}"
+                  echo "Syncing to ${APP_PATH}"
+                  sudo mkdir -p "${APP_PATH}"
+                  sudo rsync -a --delete \
+                    --exclude '.git' \
+                    "${{ github.workspace }}/" "${APP_PATH}/"
+                  sudo chown -R "$USER":"$USER" "${APP_PATH}"
 
-                  mkdir -p ${APP_PATH}
+            # If using a private registry, login before build/push (optional)
+            # - name: Docker login
+            #   run: echo "${{ secrets.REGISTRY_PASS }}" | docker login registry.local -u "${{ secrets.REGISTRY_USER }}" --password-stdin
 
-                  # JEDNOKROTNIE ZAPEWNIJ WŁASNOŚĆ (jeśli to konieczne)
-                  # sudo chown -R gitactions:gitactions /opt/calc_app 
-
-                  # Używamy rsync do synchronizacji i WYKLUCZENIA KATALOGU GIT (.git)
-                  # Wykluczenie .git jest kluczowe dla uniknięcia błędów uprawnień
-                  rsync -av --delete --exclude='.git' ${{ github.workspace }}/ ${APP_PATH}/
-
-                  echo "### Weryfikacja: Zawartość katalogu docelowego (${APP_PATH}) ###"
-                  ls -la ${APP_PATH}
-
-            - name: Build and Deploy to Docker Swarm (Final)
-              env:
-                  APP_NAME: loan-calc-app
-                  STACK_NAME: calc_stack
-                  APP_PATH: /opt/calc_app
+            - name: Build image (tags as :latest to match compose)
               run: |
-                  # Usuń stary tag obrazu
-                  docker rmi ${APP_NAME}:latest || true
+                  cd "${APP_PATH}"
+                  docker build --pull -t "${IMAGE_NAME}:${IMAGE_TAG}" .
 
-                  echo "Budowanie nowego obrazu: ${APP_NAME}:latest, używając kontekstu: ${APP_PATH}"
+            - name: Render compose (no image tag injection needed)
+              run: |
+                  cd "${APP_PATH}"
+                  docker compose config > /tmp/stack.rendered.yml
 
-                  # JAWNIE USTAWIAMY KONTEKST BUDOWANIA, co jest niezawodne
-                  docker build -t ${APP_NAME}:latest ${APP_PATH}
+            - name: Deploy to Swarm
+              run: |
+                  docker stack deploy --prune -c /tmp/stack.rendered.yml "${STACK_NAME}"
 
-                  # WDRAŻANIE DO SWARM
-                  echo "Wdrażanie do Docker Swarm pod stosem ${STACK_NAME}..."
-                  docker stack deploy -c ${APP_PATH}/docker-compose.yml ${STACK_NAME}
+            - name: Verify rollout
+              run: |
+                  echo "Services:"
+                  docker stack services "${STACK_NAME}"
+                  echo
+                  echo "Tasks (running, up to 20 per svc):"
+                  for svc in $(docker stack services --format '{{.Name}}' "${STACK_NAME}"); do
+                    echo "---- $svc ----"
+                    docker service ps --no-trunc --filter desired-state=running --limit 20 "$svc" || true
+                  done
 
-                  # --- Weryfikacja ---
-                  echo "Sprawdzanie stanu usługi Swarm."
-                  docker service ls | grep ${STACK_NAME}
+            - name: Cleanup dangling images
+              run: |
+                  docker image prune -f || true
