@@ -2,13 +2,7 @@ name: Deploy to Server
 
 on:
     push:
-        branches:
-            - "master"
-            - "deployment-fix"
-
-    pull_request:
-        branches:
-            - "master"
+        branches: [master]
 
 permissions:
     contents: read
@@ -19,7 +13,7 @@ concurrency:
 
 defaults:
     run:
-        shell: bash -euo pipefail
+        shell: "bash -euo pipefail {0}"
 
 jobs:
     deploy:
@@ -27,7 +21,7 @@ jobs:
         env:
             APP_PATH: /opt/calc_app
             STACK_NAME: calc_stack
-            IMAGE_NAME: loan-calc-app # matches your compose: image: loan-calc-app:latest
+            IMAGE_NAME: loan-calc-app
             IMAGE_TAG: latest
 
         steps:
@@ -45,7 +39,7 @@ jobs:
                     "${{ github.workspace }}/" "${APP_PATH}/"
                   sudo chown -R "$USER":"$USER" "${APP_PATH}"
 
-            # If using a private registry, login before build/push (optional)
+            # Optional: login if you use a private registry
             # - name: Docker login
             #   run: echo "${{ secrets.REGISTRY_PASS }}" | docker login registry.local -u "${{ secrets.REGISTRY_USER }}" --password-stdin
 
@@ -54,7 +48,7 @@ jobs:
                   cd "${APP_PATH}"
                   docker build --pull -t "${IMAGE_NAME}:${IMAGE_TAG}" .
 
-            - name: Render compose (no image tag injection needed)
+            - name: Render compose
               run: |
                   cd "${APP_PATH}"
                   docker compose config > /tmp/stack.rendered.yml
