@@ -2,7 +2,13 @@ name: Deploy to Server
 
 on:
     push:
-        branches: [master]
+        branches:
+            - "master"
+            - "deployment-fix"
+
+    pull_request:
+        branches:
+            - "master"
 
 permissions:
     contents: read
