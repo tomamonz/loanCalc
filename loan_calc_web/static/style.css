@@ -1,0 +1,109 @@
+body {
+    font-family: Arial, Helvetica, sans-serif;
+    background-color: #f5f6fa;
+    color: #333;
+    margin: 0;
+    padding: 0;
+}
+
+.container {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 2rem;
+}
+
+h1 {
+    text-align: center;
+    margin-bottom: 1.5rem;
+    color: #2c3e50;
+}
+
+.calc-form {
+    background-color: #ffffff;
+    padding: 1.5rem;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    margin-bottom: 2rem;
+}
+
+.form-row {
+    display: flex;
+    flex-direction: column;
+    margin-bottom: 1rem;
+}
+
+.form-row label {
+    margin-bottom: 0.3rem;
+    font-weight: bold;
+}
+
+.form-row input[type="text"],
+.form-row input[type="number"],
+.form-row input[type="month"],
+.form-row textarea,
+.form-row select {
+    padding: 0.5rem;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    font-size: 1rem;
+}
+
+.form-row textarea {
+    min-height: 60px;
+    resize: vertical;
+}
+
+.form-row button {
+    padding: 0.7rem 1.2rem;
+    background-color: #3498db;
+    color: #fff;
+    border: none;
+    border-radius: 4px;
+    font-size: 1rem;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+}
+
+.form-row button:hover {
+    background-color: #2980b9;
+}
+
+.summary-table, .schedule-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 1rem;
+}
+
+.summary-table th,
+.summary-table td,
+.schedule-table th,
+.schedule-table td {
+    padding: 0.5rem;
+    border-bottom: 1px solid #e0e0e0;
+    text-align: left;
+    font-size: 0.9rem;
+}
+
+.summary-table th {
+    width: 50%;
+    background-color: #ecf0f1;
+    font-weight: bold;
+}
+
+.schedule-wrapper {
+    overflow-x: auto;
+}
+
+.error {
+    color: #c0392b;
+    background-color: #fcebea;
+    padding: 0.8rem;
+    border-radius: 4px;
+    margin-bottom: 1rem;
+}
+
+.truncate-note {
+    font-style: italic;
+    color: #888;
+    margin-top: 0.5rem;
+}
