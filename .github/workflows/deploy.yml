@@ -1,4 +1,4 @@
-name: Deploy to Server
+name: Deploy to Server (Docker Swarm)
 
 on:
     push:
@@ -7,25 +7,29 @@ on:
 
 jobs:
     deploy:
-        # Zmieniamy, aby użyć naszego lokalnego runnera:
-        runs-on: self-hosted # Lub runs-on: [self-hosted, linux, x64]
+        runs-on: self-hosted
 
         steps:
             - name: Checkout code
               uses: actions/checkout@v4
+
             - name: Setup Deployment Environment
               env:
                   APP_PATH: /opt/calc_app
               run: |
                   echo "Tworzenie/Czyszczenie katalogu docelowego: ${APP_PATH}"
 
-                  # Upewnij się, że katalog docelowy istnieje
+                  # 1. Tworzenie katalogu docelowego (jeśli nie istnieje)
                   mkdir -p ${APP_PATH}
 
-                  # Kopiowanie CAŁEJ zawartości (w tym Dockerfile i docker-compose.yml) 
-                  # z katalogu roboczego runnera (${{ github.workspace }}) do katalogu docelowego.
-                  # Flaga -T zapewnia kopiowanie zawartości, a nie folderu w folderze.
-                  cp -rT ${{ github.workspace }} ${APP_PATH}
+                  # 2. Czyszczenie zawartości (Usuń starą zawartość przed skopiowaniem nowej)
+                  # Użyjemy rm -rf, ale bezpieczniej jest usunąć tylko zawartość.
+                  # Upewnij się, że Runner ma uprawnienia do zapisu w /opt!
+                  # Zadbaj o uprawnienia: chown gitactions:gitactions /opt/calc_app
+
+                  # 3. Kopiowanie CAŁEJ zawartości. Używamy rsync dla lepszej synchronizacji i czystości
+                  # Zapewni to skopiowanie wszystkich plików (w tym Dockerfile)
+                  rsync -av --delete ${{ github.workspace }}/ ${APP_PATH}/
 
             - name: Build and Deploy to Docker Swarm
               env:
@@ -37,19 +41,17 @@ jobs:
 
                   # --- Krok 1: Budowa i Wdrożenie ---
 
-                  # Usuń stary tag obrazu (aby mieć pewność, że build stworzy nowy)
-                  # Używamy || true, ponieważ usunięcie może się nie udać, jeśli obraz jest używany przez usługę Swarm.
+                  # Usuń stary tag obrazu
                   docker rmi ${APP_NAME}:latest || true
 
                   echo "Budowanie nowego obrazu: ${APP_NAME}:latest"
+                  # Ta komenda teraz znajdzie Dockerfile w bieżącym katalogu ${APP_PATH}
                   docker build -t ${APP_NAME}:latest .
 
                   # WDRAŻANIE DO SWARM
-                  # Swarm użyje docker-compose.yml (który zawiera instrukcję rollbacku)
                   echo "Wdrażanie do Docker Swarm pod stosem ${STACK_NAME}..."
                   docker stack deploy -c docker-compose.yml ${STACK_NAME}
 
                   # --- Krok 2: Weryfikacja ---
-                  # Swarm działa w tle, to polecenie tylko pokazuje, że usługa została wysłana do managera
-                  echo "Sprawdzanie stanu usługi Swarm. Rollback nastąpi automatycznie w tle w razie awarii."
+                  echo "Sprawdzanie stanu usługi Swarm."
                   docker service ls | grep ${STACK_NAME}
