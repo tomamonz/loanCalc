@@ -35,35 +35,63 @@ jobs:
               with:
                   fetch-depth: 0
 
-            - name: Sync build context to ${APP_PATH}
+            - name: Choose deploy context (APP_PATH or workspace)
+              id: ctx
               run: |
-                  echo "Syncing to ${APP_PATH}"
-                  mkdir -p "${APP_PATH}"
-                  # One-time cleanup if this ever got copied previously:
-                  rm -rf "${APP_PATH}/.git" || true
-                  rsync -a --delete --delete-excluded \
-                      --exclude '.git' \
-                      "${{ github.workspace }}/" "${APP_PATH}/"
+                  TARGET="${APP_PATH}"
+                  if mkdir -p "${TARGET}" 2>/dev/null; then
+                    echo "Using APP_PATH=${TARGET}"
+                    echo "CTX=${TARGET}" >> "$GITHUB_ENV"
+                  else
+                    echo "WARNING: ${TARGET} not usable; falling back to workspace"
+                    echo "CTX=${{ github.workspace }}" >> "$GITHUB_ENV"
+                  fi
 
-            - name: Verify synced files
+            - name: Sync source to context (only if context != workspace)
               run: |
-                  echo "Listing ${APP_PATH}:"
-                  ls -la "${APP_PATH}"
-                  echo "Dockerfile size (bytes):"
-                  wc -c "${APP_PATH}/Dockerfile" || true
+                  echo "CTX is: ${CTX}"
+                  if [ "${CTX}" != "${{ github.workspace }}" ]; then
+                    echo "Syncing repo into ${CTX}"
+                    # one-time cleanup of any stray .git
+                    rm -rf "${CTX}/.git" || true
+                    rsync -a --delete --delete-excluded \
+                      --exclude '.git' \
+                      "${{ github.workspace }}/" "${CTX}/"
+                  else
+                    echo "CTX equals workspace; skipping rsync"
+                  fi
+
+            - name: Verify context contents
+              run: |
+                  echo "Listing CTX=${CTX}"
+                  ls -la "${CTX}"
+                  echo "Dockerfile size:"
+                  wc -c "${CTX}/Dockerfile" || true
+                  echo "docker-compose.yml size:"
+                  wc -c "${CTX}/docker-compose.yml" || true
 
             - name: Build image (tags as :latest to match compose)
               run: |
-                  # Use absolute paths to avoid /var/lib/snapd/void issues
+                  # Use ABSOLUTE paths to avoid snap /var/lib/snapd/void issues
+                  if [ ! -f "${CTX}/Dockerfile" ]; then
+                    echo "ERROR: ${CTX}/Dockerfile not found"; exit 1
+                  fi
                   docker build --pull \
-                  -f "${APP_PATH}/Dockerfile" \
-                  -t "${IMAGE_NAME}:${IMAGE_TAG}" \
-                  "${APP_PATH}"
+                    -f "${CTX}/Dockerfile" \
+                    -t "${IMAGE_NAME}:${IMAGE_TAG}" \
+                    "${CTX}"
 
-            - name: Render compose
+            - name: Render compose with absolute paths
               run: |
-                  cd "${APP_PATH}"
-                  docker compose config > /tmp/stack.rendered.yml
+                  if [ ! -f "${CTX}/docker-compose.yml" ]; then
+                    echo "ERROR: ${CTX}/docker-compose.yml not found"; exit 1
+                  fi
+                  docker compose \
+                    --project-directory "${CTX}" \
+                    -f "${CTX}/docker-compose.yml" \
+                    config > /tmp/stack.rendered.yml
+                  echo "Rendered compose to /tmp/stack.rendered.yml"
+                  head -n 50 /tmp/stack.rendered.yml || true
 
             - name: Deploy to Swarm (only on push)
               if: github.event_name == 'push'
@@ -76,10 +104,9 @@ jobs:
                   echo "Services:"
                   docker stack services "${STACK_NAME}"
                   echo
-                  echo "Tasks (running, up to 20 per svc):"
                   for svc in $(docker stack services --format '{{.Name}}' "${STACK_NAME}"); do
                     echo "---- $svc ----"
-                    docker service ps --no-trunc --filter desired-state=running --limit 20 "$svc" || true
+                    docker service ps --no-trunc --limit 20 "$svc" || true
                   done
 
             - name: Cleanup dangling images
