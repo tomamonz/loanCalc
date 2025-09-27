@@ -18,7 +18,7 @@ jobs:
               env:
                   APP_NAME: loan-calc-app
                   CONTAINER_NAME: my-calc-container
-                  APP_PATH: /home/tom/calc_app/calc
+                  APP_PATH: /opt/calc_app
               run: |
                   # 1. Przejdź do katalogu aplikacji (na serwerze)
                   cd ${APP_PATH}
