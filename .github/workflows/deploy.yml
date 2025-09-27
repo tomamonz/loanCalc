@@ -21,34 +21,32 @@ jobs:
 
                   mkdir -p ${APP_PATH}
 
-                  # Kopiowanie CAŁEJ zawartości do trwałego katalogu
-                  cp -rT ${{ github.workspace }} ${APP_PATH}
+                  # JEDNOKROTNIE ZAPEWNIJ WŁASNOŚĆ (jeśli to konieczne)
+                  # sudo chown -R gitactions:gitactions /opt/calc_app 
+
+                  # Używamy rsync do synchronizacji i WYKLUCZENIA KATALOGU GIT (.git)
+                  # Wykluczenie .git jest kluczowe dla uniknięcia błędów uprawnień
+                  rsync -av --delete --exclude='.git' ${{ github.workspace }}/ ${APP_PATH}/
+
+                  echo "### Weryfikacja: Zawartość katalogu docelowego (${APP_PATH}) ###"
+                  ls -la ${APP_PATH}
 
             - name: Build and Deploy to Docker Swarm (Final)
               env:
                   APP_NAME: loan-calc-app
                   STACK_NAME: calc_stack
-                  APP_PATH: /opt/calc_app # Przekazujemy ścieżkę do Dockera
+                  APP_PATH: /opt/calc_app
               run: |
-                  # --- Zauważ, że nie ma tu już komendy 'cd' ---
-
                   # Usuń stary tag obrazu
                   docker rmi ${APP_NAME}:latest || true
 
                   echo "Budowanie nowego obrazu: ${APP_NAME}:latest, używając kontekstu: ${APP_PATH}"
 
-                  # JAWNIE USTAWIAMY KONTEKST BUDOWANIA na APP_PATH
-                  # Ta komenda musi zadziałać, skoro wiemy, że Dockerfile tam jest.
+                  # JAWNIE USTAWIAMY KONTEKST BUDOWANIA, co jest niezawodne
                   docker build -t ${APP_NAME}:latest ${APP_PATH}
 
                   # WDRAŻANIE DO SWARM
-                  # docker stack deploy wymaga, aby docker-compose.yml był w bieżącym katalogu
-                  # W Twoim przypadku docker-compose.yml jest w /opt/calc_app, a my jesteśmy w ${GITHUB_WORKSPACE}
-                  # Musimy skopiować go do katalogu roboczego LUB użyć jego pełnej ścieżki.
-
                   echo "Wdrażanie do Docker Swarm pod stosem ${STACK_NAME}..."
-
-                  # Używamy docker-compose.yml z jego pełną ścieżką
                   docker stack deploy -c ${APP_PATH}/docker-compose.yml ${STACK_NAME}
 
                   # --- Weryfikacja ---
