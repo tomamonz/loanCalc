@@ -54,12 +54,11 @@ jobs:
 
             - name: Build image (tags as :latest to match compose)
               run: |
-                  cd "${APP_PATH}"
-                  # Sanity checks
-                  test -f Dockerfile || (echo "ERROR: Dockerfile not found in ${APP_PATH}"; exit 1)
-                  test -s Dockerfile || (echo "ERROR: Dockerfile exists but is empty"; exit 1)
-                  # Optional: turn off BuildKit for clearer diagnostics
-                  DOCKER_BUILDKIT=0 docker build --pull -f Dockerfile -t "${IMAGE_NAME}:${IMAGE_TAG}" .
+                  # Use absolute paths to avoid /var/lib/snapd/void issues
+                  docker build --pull \
+                  -f "${APP_PATH}/Dockerfile" \
+                  -t "${IMAGE_NAME}:${IMAGE_TAG}" \
+                  "${APP_PATH}"
 
             - name: Render compose
               run: |
