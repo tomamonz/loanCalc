@@ -1,0 +1,26 @@
+version: "3.8"
+
+services:
+  calc_app:
+    image: loan-calc-app:latest # Nazwa obrazu z Dockerfile
+    container_name: my-calc-container
+    ports:
+      - "8710:8710"
+    volumes:
+      # Prawdopodobnie niepotrzebne w produkcji, ale możesz użyć do logów itp.
+      - /opt/calc_app/logs:/app/logs
+    environment:
+      - HOST=0.0.0.0
+      - PORT=8710
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager # Upewnij się, że usługa działa na managerze (Twoim serwerze)
+      update_config:
+        # Czas oczekiwania przed sprawdzeniem, czy kontener działa
+        delay: 5s
+        # Maksymalny błąd podczas aktualizacji (0 oznacza, że jeśli pierwszy nie zadziała, to się cofa)
+        failure_action: rollback
+      restart_policy:
+        condition: on-failure

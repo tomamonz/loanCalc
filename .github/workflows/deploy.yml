@@ -13,25 +13,43 @@ jobs:
         steps:
             - name: Checkout code
               uses: actions/checkout@v4
-
-            - name: Build and Restart Docker Container
+            - name: Setup Deployment Environment
               env:
-                  APP_NAME: loan-calc-app
-                  CONTAINER_NAME: my-calc-container
                   APP_PATH: /opt/calc_app
               run: |
-                  # 1. Przejdź do katalogu aplikacji (na serwerze)
+                  echo "Tworzenie/Czyszczenie katalogu docelowego: ${APP_PATH}"
+
+                  # Upewnij się, że katalog docelowy istnieje
+                  mkdir -p ${APP_PATH}
+
+                  # Kopiowanie CAŁEJ zawartości (w tym Dockerfile i docker-compose.yml) 
+                  # z katalogu roboczego runnera (${{ github.workspace }}) do katalogu docelowego.
+                  # Flaga -T zapewnia kopiowanie zawartości, a nie folderu w folderze.
+                  cp -rT ${{ github.workspace }} ${APP_PATH}
+
+            - name: Build and Deploy to Docker Swarm
+              env:
+                  APP_NAME: loan-calc-app
+                  STACK_NAME: calc_stack
+              run: |
+                  # Przejdź do trwałego katalogu aplikacji, który jest kontekstem budowania Dockera
                   cd ${APP_PATH}
 
-                  # 2. Zatrzymaj i usuń istniejący kontener
-                  docker stop ${CONTAINER_NAME} || true
-                  docker rm ${CONTAINER_NAME} || true
+                  # --- Krok 1: Budowa i Wdrożenie ---
 
-                  # 3. Usuń stary obraz, aby mieć pewność, że zbuduje się nowy
-                  docker rmi ${APP_NAME} || true
+                  # Usuń stary tag obrazu (aby mieć pewność, że build stworzy nowy)
+                  # Używamy || true, ponieważ usunięcie może się nie udać, jeśli obraz jest używany przez usługę Swarm.
+                  docker rmi ${APP_NAME}:latest || true
 
-                  # 4. Zbuduj nowy obraz Dockera z plików pobranych przez runnera
-                  docker build -t ${APP_NAME} .
+                  echo "Budowanie nowego obrazu: ${APP_NAME}:latest"
+                  docker build -t ${APP_NAME}:latest .
 
-                  # 5. Uruchom nowy kontener z autostartem
-                  docker run -d -p 8710:8710 --name ${CONTAINER_NAME} --restart unless-stopped ${APP_NAME}
+                  # WDRAŻANIE DO SWARM
+                  # Swarm użyje docker-compose.yml (który zawiera instrukcję rollbacku)
+                  echo "Wdrażanie do Docker Swarm pod stosem ${STACK_NAME}..."
+                  docker stack deploy -c docker-compose.yml ${STACK_NAME}
+
+                  # --- Krok 2: Weryfikacja ---
+                  # Swarm działa w tle, to polecenie tylko pokazuje, że usługa została wysłana do managera
+                  echo "Sprawdzanie stanu usługi Swarm. Rollback nastąpi automatycznie w tle w razie awarii."
+                  docker service ls | grep ${STACK_NAME}
