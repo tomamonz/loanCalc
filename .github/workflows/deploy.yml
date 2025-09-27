@@ -19,39 +19,38 @@ jobs:
               run: |
                   echo "Tworzenie/Czyszczenie katalogu docelowego: ${APP_PATH}"
 
-                  # 1. Tworzenie katalogu docelowego (jeśli nie istnieje)
                   mkdir -p ${APP_PATH}
 
-                  # 2. Czyszczenie zawartości (Usuń starą zawartość przed skopiowaniem nowej)
-                  # Użyjemy rm -rf, ale bezpieczniej jest usunąć tylko zawartość.
-                  # Upewnij się, że Runner ma uprawnienia do zapisu w /opt!
-                  # Zadbaj o uprawnienia: chown gitactions:gitactions /opt/calc_app
+                  # Kopiowanie CAŁEJ zawartości do trwałego katalogu
+                  cp -rT ${{ github.workspace }} ${APP_PATH}
 
-                  # 3. Kopiowanie CAŁEJ zawartości. Używamy rsync dla lepszej synchronizacji i czystości
-                  # Zapewni to skopiowanie wszystkich plików (w tym Dockerfile)
-                  rsync -av --delete ${{ github.workspace }}/ ${APP_PATH}/
-
-            - name: Build and Deploy to Docker Swarm
+            - name: Build and Deploy to Docker Swarm (Final)
               env:
                   APP_NAME: loan-calc-app
                   STACK_NAME: calc_stack
+                  APP_PATH: /opt/calc_app # Przekazujemy ścieżkę do Dockera
               run: |
-                  # Przejdź do trwałego katalogu aplikacji, który jest kontekstem budowania Dockera
-                  cd ${APP_PATH}
-
-                  # --- Krok 1: Budowa i Wdrożenie ---
+                  # --- Zauważ, że nie ma tu już komendy 'cd' ---
 
                   # Usuń stary tag obrazu
                   docker rmi ${APP_NAME}:latest || true
 
-                  echo "Budowanie nowego obrazu: ${APP_NAME}:latest"
-                  # Ta komenda teraz znajdzie Dockerfile w bieżącym katalogu ${APP_PATH}
-                  docker build -t ${APP_NAME}:latest .
+                  echo "Budowanie nowego obrazu: ${APP_NAME}:latest, używając kontekstu: ${APP_PATH}"
+
+                  # JAWNIE USTAWIAMY KONTEKST BUDOWANIA na APP_PATH
+                  # Ta komenda musi zadziałać, skoro wiemy, że Dockerfile tam jest.
+                  docker build -t ${APP_NAME}:latest ${APP_PATH}
 
                   # WDRAŻANIE DO SWARM
-                  echo "Wdrażanie do Docker Swarm pod stosem ${STACK_NAME}..."
-                  docker stack deploy -c docker-compose.yml ${STACK_NAME}
+                  # docker stack deploy wymaga, aby docker-compose.yml był w bieżącym katalogu
+                  # W Twoim przypadku docker-compose.yml jest w /opt/calc_app, a my jesteśmy w ${GITHUB_WORKSPACE}
+                  # Musimy skopiować go do katalogu roboczego LUB użyć jego pełnej ścieżki.
 
-                  # --- Krok 2: Weryfikacja ---
+                  echo "Wdrażanie do Docker Swarm pod stosem ${STACK_NAME}..."
+
+                  # Używamy docker-compose.yml z jego pełną ścieżką
+                  docker stack deploy -c ${APP_PATH}/docker-compose.yml ${STACK_NAME}
+
+                  # --- Weryfikacja ---
                   echo "Sprawdzanie stanu usługi Swarm."
                   docker service ls | grep ${STACK_NAME}
