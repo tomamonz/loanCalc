@@ -85,6 +85,20 @@ jobs:
                   echo "Resolved cpus lines:"
                   grep -n 'cpus:' /tmp/stack.rendered.yml || true
 
+            - name: Render compose with vars (and re-quote cpus for Swarm)
+              run: |
+                  export IMAGE_REPO IMAGE_TAG
+                  docker compose \
+                  --project-directory "${APP_PATH}" \
+                  -f "${APP_PATH}/docker-compose.yml" \
+                  config > /tmp/stack.rendered.yml
+
+                  # Re-quote cpus because `compose config` strips quotes and Swarm requires strings
+                  sed -E -i 's/(cpus:\s*)([0-9]+(\.[0-9]+)?)/\1"\2"/g' /tmp/stack.rendered.yml
+
+                  echo "Resolved image lines:";   grep -n '^ *image:' /tmp/stack.rendered.yml || true
+                  echo "Resolved cpus lines:";    grep -n '^ *cpus:'  /tmp/stack.rendered.yml || true
+                  echo "Resolved ports blocks:";  awk '/ports:/,/^$/' /tmp/stack.rendered.yml | sed -n '1,20p'
             - name: Deploy to Swarm (only on push)
               if: github.event_name == 'push'
               run: |

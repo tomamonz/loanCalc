@@ -1,17 +1,18 @@
-version: "3.8"
-
 services:
   calc_app:
-    image: ${IMAGE_REPO}:${IMAGE_TAG} # resolved by the workflow's env
+    image: ${IMAGE_REPO}:${IMAGE_TAG}
     ports:
-      - "8710:8710"
+      - target: 8710
+        published: 8710
+        protocol: tcp
+        mode: ingress
     environment:
-      - HOST="0.0.0.0"
-      - PORT="8710"
+      - HOST=0.0.0.0
+      - PORT=8710
     deploy:
       resources:
         limits:
-          cpus: "0.50" # must be strings in Swarm
+          cpus: "0.50"
           memory: "512M"
         reservations:
           cpus: "0.10"
