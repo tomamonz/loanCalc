@@ -6,8 +6,8 @@ services:
     ports:
       - "8710:8710"
     environment:
-      - HOST=0.0.0.0
-      - PORT=8710
+      - HOST="0.0.0.0"
+      - PORT="8710"
     deploy:
       resources:
         limits:
