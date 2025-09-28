@@ -1,0 +1,206 @@
+/*
+ * Modern styling for the Loan Calculator application.
+ *
+ * This stylesheet defines a simple, responsive layout and modern visual
+ * treatments for the loan form, summary, and schedule tables. It uses
+ * CSS variables for colours and sizes to make updates easy and to
+ * maintain a consistent look throughout the application. Wherever
+ * possible the styles avoid absolute positioning in favour of flexible
+ * grids, improving the experience on narrow and wide screens alike.
+ */
+
+/* Colour palette and sizing variables */
+:root {
+    --primary-color: #2c3e50;
+    --secondary-color: #3498db;
+    --secondary-color-hover: #2980b9;
+    --background-color: #f5f6fa;
+    --text-color: #333333;
+    --card-background: #ffffff;
+    --error-color: #c0392b;
+    --border-radius: 8px;
+    --shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    --header-bg: var(--primary-color);
+    --header-fg: #ffffff;
+    --table-header-bg: #ecf0f1;
+}
+
+/* Global defaults */
+body {
+    margin: 0;
+    padding: 0;
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, "Open Sans", "Helvetica Neue", sans-serif;
+    background-color: var(--background-color);
+    color: var(--text-color);
+    line-height: 1.5;
+}
+
+/* Site header */
+.site-header {
+    background-color: var(--header-bg);
+    color: var(--header-fg);
+    padding: 1.25rem 1rem;
+    text-align: center;
+    box-shadow: var(--shadow);
+}
+
+/* Main container */
+.container {
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 0 1rem 2rem;
+}
+
+/* Section wrappers for form groups */
+.section {
+    margin-bottom: 1.5rem;
+    background-color: var(--card-background);
+    padding: 1rem;
+    border-radius: var(--border-radius);
+    box-shadow: var(--shadow);
+}
+.section legend {
+    font-size: 1.25rem;
+    font-weight: 600;
+    padding: 0 0.5rem;
+    color: var(--primary-color);
+}
+
+/* Grid layout for inputs */
+.form-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 1rem;
+}
+
+/* Individual form fields */
+.form-field {
+    display: flex;
+    flex-direction: column;
+}
+.form-field label {
+    margin-bottom: 0.25rem;
+    font-weight: 500;
+    color: var(--primary-color);
+}
+.form-field input,
+.form-field textarea,
+.form-field select {
+    font-size: 1rem;
+    padding: 0.5rem;
+    border: 1px solid #cccccc;
+    border-radius: var(--border-radius);
+    background-color: #ffffff;
+    color: var(--text-color);
+    outline: none;
+    transition: border-color 0.2s ease-in-out;
+}
+.form-field input:focus,
+.form-field textarea:focus,
+.form-field select:focus {
+    border-color: var(--secondary-color);
+}
+.form-field textarea {
+    min-height: 80px;
+    resize: vertical;
+}
+
+/* Form actions */
+.form-actions {
+    text-align: right;
+    margin-top: 1rem;
+}
+.btn {
+    background-color: var(--secondary-color);
+    color: #ffffff;
+    border: none;
+    padding: 0.75rem 1.5rem;
+    font-size: 1rem;
+    border-radius: var(--border-radius);
+    cursor: pointer;
+    transition: background-color 0.2s ease-in-out;
+}
+.btn:hover,
+.btn:focus {
+    background-color: var(--secondary-color-hover);
+}
+.btn:active {
+    background-color: var(--primary-color);
+}
+
+/* Error message styling */
+.error {
+    margin-bottom: 1rem;
+    padding: 0.5rem 1rem;
+    color: #ffffff;
+    background-color: var(--error-color);
+    border-radius: var(--border-radius);
+    box-shadow: var(--shadow);
+}
+
+/* Results sections */
+.results {
+    margin-top: 2rem;
+}
+.results h2 {
+    margin-bottom: 1rem;
+    font-size: 1.5rem;
+    color: var(--primary-color);
+}
+
+/* Tables */
+.summary-table,
+.schedule-table {
+    width: 100%;
+    border-collapse: collapse;
+    overflow: hidden;
+    border-radius: var(--border-radius);
+    box-shadow: var(--shadow);
+    margin-bottom: 1rem;
+}
+.summary-table th,
+.summary-table td,
+.schedule-table th,
+.schedule-table td {
+    padding: 0.75rem 0.5rem;
+    border: 1px solid #eaeaea;
+    font-size: 0.95rem;
+    text-align: left;
+}
+.summary-table th {
+    background-color: var(--table-header-bg);
+    font-weight: 600;
+}
+.schedule-table thead th {
+    background-color: var(--table-header-bg);
+    font-weight: 600;
+    position: sticky;
+    top: 0;
+    z-index: 2;
+}
+.schedule-table tbody tr:nth-child(even) {
+    background-color: #fafafa;
+}
+
+/* Truncated results note */
+.truncate-note {
+    font-size: 0.9rem;
+    color: #888888;
+    margin-top: 0.5rem;
+}
+
+/* Responsive adjustments */
+@media (max-width: 600px) {
+    .section {
+        padding: 0.75rem;
+    }
+    .form-grid {
+        grid-template-columns: 1fr;
+    }
+    .btn {
+        width: 100%;
+    }
+    .form-actions {
+        text-align: center;
+    }
+}
