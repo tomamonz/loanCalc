@@ -69,23 +69,7 @@ jobs:
             #   run: |
             #     docker push "${IMAGE_REPO}:${IMAGE_TAG}"
 
-            - name: Render compose with vars (and re-quote cpus for Swarm)
-              run: |
-                  export IMAGE_REPO IMAGE_TAG
-                  docker compose \
-                    --project-directory "${APP_PATH}" \
-                    -f "${APP_PATH}/docker-compose.yml" \
-                    config > /tmp/stack.rendered.yml
-
-                  # Re-quote cpus because `compose config` strips quotes and Swarm requires strings
-                  sed -E -i 's/(cpus:\s*)([0-9]+(\.[0-9]+)?)/\1"\2"/g' /tmp/stack.rendered.yml
-
-                  echo "Resolved image lines:"
-                  grep -n 'image:' /tmp/stack.rendered.yml || true
-                  echo "Resolved cpus lines:"
-                  grep -n 'cpus:' /tmp/stack.rendered.yml || true
-
-            - name: Render compose with vars (and re-quote cpus for Swarm)
+            - name: Render compose with vars (fix cpus & ports for Swarm)
               run: |
                   export IMAGE_REPO IMAGE_TAG
                   docker compose \
@@ -93,12 +77,17 @@ jobs:
                   -f "${APP_PATH}/docker-compose.yml" \
                   config > /tmp/stack.rendered.yml
 
-                  # Re-quote cpus because `compose config` strips quotes and Swarm requires strings
-                  sed -E -i 's/(cpus:\s*)([0-9]+(\.[0-9]+)?)/\1"\2"/g' /tmp/stack.rendered.yml
+                  # Swarm quirks:
+                  # 1) cpus must be strings — docker compose config strips quotes -> re-add them
+                  sed -E -i 's/(^ *cpus:\s*)([0-9]+(\.[0-9]+)?)/\1"\2"/' /tmp/stack.rendered.yml
+
+                  # 2) published port must be integer — some setups output it quoted -> remove quotes
+                  sed -E -i 's/(^ *published:\s*)"([0-9]+)"/\1\2/' /tmp/stack.rendered.yml
 
                   echo "Resolved image lines:";   grep -n '^ *image:' /tmp/stack.rendered.yml || true
                   echo "Resolved cpus lines:";    grep -n '^ *cpus:'  /tmp/stack.rendered.yml || true
-                  echo "Resolved ports blocks:";  awk '/ports:/,/^$/' /tmp/stack.rendered.yml | sed -n '1,20p'
+                  echo "Resolved ports block:";   awk '/ports:/,/^$/' /tmp/stack.rendered.yml | sed -n '1,50p'
+
             - name: Deploy to Swarm (only on push)
               if: github.event_name == 'push'
               run: |
