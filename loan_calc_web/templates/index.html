@@ -1,72 +1,1022 @@
 <!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Loan Calculator</title>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/modern-normalize/1.1.0/modern-normalize.min.css" />
-    <link rel="stylesheet" href="/static/style.css" />
-</head>
-<body>
-    <div class="container">
-        <h1>Loan Calculator</h1>
-        {% if error %}
-        <div class="error">{{ error }}</div>
-        {% endif %}
-        <form method="post" class="calc-form">
-            <div class="form-row">
-                <label for="principal">Principal</label>
-                <input type="text" id="principal" name="principal" placeholder="e.g. 988000" required />
-            </div>
-            <div class="form-row">
-                <label for="rate">Annual Rate (%)</label>
-                <input type="number" step="0.01" id="rate" name="rate" placeholder="e.g. 6.19" required />
-            </div>
-            <div class="form-row">
-                <label for="term">Term (months)</label>
-                <input type="number" id="term" name="term" placeholder="e.g. 360" required />
-            </div>
-            <div class="form-row">
-                <label for="loan_type">Installment Type</label>
-                <select id="loan_type" name="loan_type">
-                    <option value="annuity">Annuity</option>
-                    <option value="decreasing">Decreasing</option>
-                </select>
-            </div>
-            <div class="form-row">
-                <label for="start_date">Start Date</label>
-                <input type="month" id="start_date" name="start_date" required />
-            </div>
-            <div class="form-row">
-                <label for="down_payment">Down Payment</label>
-                <input type="text" id="down_payment" name="down_payment" placeholder="e.g. 150000" />
-            </div>
-            <div class="form-row">
-                <label for="tranches">Tranches</label>
-                <textarea id="tranches" name="tranches" placeholder="YYYY-MM:PERCENT, one per line or comma-separated"></textarea>
-            </div>
-            <div class="form-row">
-                <label for="overpayments">Overpayments</label>
-                <textarea id="overpayments" name="overpayments" placeholder="YYYY-MM:AMOUNT:TYPE, one per line or comma-separated"></textarea>
-            </div>
-            <div class="form-row">
-                <label for="monthly_overpayment">Monthly Overpayment</label>
-                <input type="text" id="monthly_overpayment" name="monthly_overpayment" placeholder="AMOUNT:TYPE (e.g. 500:term)" />
-            </div>
-            <div class="form-row">
-                <label for="constant_payment">Constant Payment</label>
-                <input type="text" id="constant_payment" name="constant_payment" placeholder="e.g. 7000" />
-            </div>
-            <div class="form-row">
-                <label for="holidays">Holidays</label>
-                <textarea id="holidays" name="holidays" placeholder="YYYY-MM, one per line or comma-separated"></textarea>
-            </div>
-            <div class="form-row">
-                <button type="submit">Calculate</button>
-            </div>
-        </form>
+<html lang="en" class="h-full">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>LoanCalc — Modern Loan Calculator</title>
 
-        <!-- The results page is generated dynamically by the server. -->
+    <!-- Tailwind (CDN dev build). For production, consider prebuild. -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Icons -->
+    <script
+      src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"
+      defer
+    ></script>
+
+    <!-- Chart.js for charts -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+    <style>
+      /* Subtle tweaks */
+      :root {
+        --card: 255 255 255;
+        --card-dark: 24 24 27;
+      }
+      .card {
+        @apply rounded-2xl shadow-sm border border-zinc-200 bg-white dark:bg-zinc-900 dark:border-zinc-800;
+      }
+      .card-pad {
+        @apply p-5 md:p-6;
+      }
+      .btn {
+        @apply inline-flex items-center gap-2 rounded-xl border border-zinc-300 dark:border-zinc-700 px-4 py-2 text-sm font-medium hover:bg-zinc-50 dark:hover:bg-zinc-800;
+      }
+      .btn-primary {
+        @apply bg-black text-white dark:bg-white dark:text-black hover:opacity-90 border-transparent;
+      }
+      .input,
+      select,
+      .select,
+      .textarea {
+        @apply w-full rounded-xl border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-black dark:focus:ring-white;
+      }
+      .kpi {
+        @apply text-2xl md:text-3xl font-semibold tracking-tight;
+      }
+      .kpi-label {
+        @apply text-xs uppercase tracking-wider text-zinc-500 dark:text-zinc-400;
+      }
+      .table-sticky thead th {
+        position: sticky;
+        top: 0;
+        background: rgb(var(--card));
+        z-index: 1;
+      }
+      html.dark .table-sticky thead th {
+        background: rgb(var(--card-dark));
+      }
+    </style>
+  </head>
+
+  <body
+    class="h-full bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-50"
+  >
+    <!-- Top bar -->
+    <header
+      class="sticky top-0 z-30 backdrop-blur supports-[backdrop-filter]:bg-white/60 supports-[backdrop-filter]:dark:bg-zinc-950/60 border-b border-zinc-200 dark:border-zinc-800"
+    >
+      <div
+        class="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between"
+      >
+        <div class="flex items-center gap-3">
+          <svg
+            width="28"
+            height="28"
+            viewBox="0 0 24 24"
+            class="text-black dark:text-white"
+          >
+            <path
+              fill="currentColor"
+              d="M3 13h2v-2H3v2m4 8h2V5H7v16m4-4h2V3h-2v14m4-6h2V9h-2v2m4 10h2V7h-2v14Z"
+            />
+          </svg>
+          <div>
+            <div class="font-semibold">LoanCalc</div>
+            <div class="text-xs text-zinc-500 dark:text-zinc-400">
+              Modern loan planning
+            </div>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-2">
+          <button id="langToggle" class="btn" title="PL / EN">PL / EN</button>
+          <button id="themeToggle" class="btn" title="Toggle theme">
+            <span class="inline-block" data-icon="sun">🌞</span>
+            <span class="hidden" data-icon="moon">🌙</span>
+          </button>
+          <a
+            href="https://github.com/tomamonz/loanCalc"
+            target="_blank"
+            rel="noreferrer"
+            class="btn"
+            title="GitHub"
+            >GitHub</a
+          >
+        </div>
+      </div>
+    </header>
+
+    <!-- Content -->
+    <main class="max-w-6xl mx-auto px-4 py-6 space-y-6">
+      <!-- Form + Results layout -->
+      <section class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <!-- Left: inputs -->
+        <div class="space-y-6">
+          <!-- 1. Basics -->
+          <div class="card card-pad">
+            <div class="flex items-center justify-between mb-4">
+              <h2 class="text-lg font-semibold" data-i="basics">Basics</h2>
+              <span class="text-xs text-zinc-500" id="version"></span>
+            </div>
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <div>
+                <label class="text-sm mb-1 block" data-i="principal"
+                  >Principal</label
+                >
+                <input
+                  id="principal"
+                  type="number"
+                  class="input"
+                  min="0"
+                  step="1000"
+                  placeholder="e.g. 988000"
+                />
+              </div>
+              <div>
+                <label class="text-sm mb-1 block" data-i="downPayment"
+                  >Down payment</label
+                >
+                <input
+                  id="downPayment"
+                  type="number"
+                  class="input"
+                  min="0"
+                  step="1000"
+                  placeholder="e.g. 150000"
+                />
+              </div>
+              <div>
+                <label class="text-sm mb-1 block" data-i="rate"
+                  >Annual rate (%)</label
+                >
+                <input
+                  id="rate"
+                  type="number"
+                  class="input"
+                  min="0"
+                  step="0.01"
+                  placeholder="e.g. 6.19"
+                />
+              </div>
+              <div>
+                <label class="text-sm mb-1 block" data-i="termMonths"
+                  >Term (months)</label
+                >
+                <input
+                  id="term"
+                  type="number"
+                  class="input"
+                  min="1"
+                  step="1"
+                  placeholder="e.g. 360"
+                />
+              </div>
+              <div>
+                <label class="text-sm mb-1 block" data-i="startDate"
+                  >Start date</label
+                >
+                <input id="startDate" type="month" class="input" />
+              </div>
+              <div>
+                <label class="text-sm mb-1 block" data-i="installmentType"
+                  >Installment</label
+                >
+                <select id="installmentType" class="select">
+                  <option value="annuity">Annuity</option>
+                  <option value="decreasing">Decreasing</option>
+                </select>
+              </div>
+              <div class="md:col-span-2">
+                <label class="text-sm mb-1 block" data-i="fees"
+                  >Upfront fees / costs (PLN, optional)</label
+                >
+                <input
+                  id="fees"
+                  type="number"
+                  class="input"
+                  min="0"
+                  step="1"
+                  placeholder="e.g. 2500"
+                />
+              </div>
+            </div>
+          </div>
+
+          <!-- 2. Disbursement / Tranches -->
+          <div class="card card-pad">
+            <div class="flex items-center justify-between mb-4">
+              <h2 class="text-lg font-semibold" data-i="tranches">Tranches</h2>
+              <button id="addTranche" class="btn">
+                + <span data-i="add">Add</span>
+              </button>
+            </div>
+            <div id="trancheList" class="space-y-2"></div>
+            <p class="text-xs text-zinc-500 mt-2" data-i="trancheHint">
+              Example: 2025-10: 80, 2025-11: 90 (values are thousands or adjust
+              to your currency convention).
+            </p>
+          </div>
+
+          <!-- 3. Overpayments -->
+          <div class="card card-pad">
+            <h2 class="text-lg font-semibold mb-4" data-i="overpayments">
+              Overpayments
+            </h2>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <div>
+                <label class="text-sm mb-1 block" data-i="monthlyOverpayment"
+                  >Monthly overpayment</label
+                >
+                <input
+                  id="monthlyOverpay"
+                  type="number"
+                  min="0"
+                  step="100"
+                  class="input"
+                  placeholder="e.g. 500"
+                />
+              </div>
+              <div>
+                <label class="text-sm mb-1 block" data-i="overpayMode"
+                  >Overpayment mode</label
+                >
+                <select id="overpayMode" class="select">
+                  <option value="term" data-i="shortenTerm">
+                    Shorten term
+                  </option>
+                  <option value="installment" data-i="lowerInstallment">
+                    Lower future payment
+                  </option>
+                </select>
+              </div>
+              <div>
+                <label class="text-sm mb-1 block" data-i="oneoffOverpayment"
+                  >One-off overpayment</label
+                >
+                <input
+                  id="oneOffOverpay"
+                  type="number"
+                  min="0"
+                  step="1000"
+                  class="input"
+                  placeholder="e.g. 20000"
+                />
+              </div>
+            </div>
+          </div>
+
+          <!-- Actions -->
+          <div class="flex gap-2 flex-wrap">
+            <button id="calcBtn" class="btn btn-primary">
+              <span data-i="calculate">Calculate</span>
+            </button>
+            <button id="exportBtn" class="btn" disabled>
+              <span data-i="exportCsv">Export CSV</span>
+            </button>
+            <button id="shareBtn" class="btn">
+              <span data-i="shareLink">Share link</span>
+            </button>
+            <button id="resetBtn" class="btn">
+              <span data-i="reset">Reset</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Right: results -->
+        <div class="space-y-6">
+          <!-- KPIs -->
+          <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div class="card card-pad">
+              <div class="kpi" id="kpiPayment">—</div>
+              <div class="kpi-label" data-i="monthlyPayment">
+                Monthly payment
+              </div>
+            </div>
+            <div class="card card-pad">
+              <div class="kpi" id="kpiTotalInterest">—</div>
+              <div class="kpi-label" data-i="totalInterest">Total interest</div>
+            </div>
+            <div class="card card-pad">
+              <div class="kpi" id="kpiTotalPaid">—</div>
+              <div class="kpi-label" data-i="totalPaid">Total paid</div>
+            </div>
+            <div class="card card-pad">
+              <div class="kpi" id="kpiPayoffDate">—</div>
+              <div class="kpi-label" data-i="payoffDate">Payoff date</div>
+            </div>
+          </div>
+
+          <!-- APR/RRSO -->
+          <div class="card card-pad">
+            <div class="flex items-center justify-between">
+              <div>
+                <div class="text-sm font-medium" data-i="apr">APR / RRSO</div>
+                <div id="kpiAPR" class="text-xl mt-1">—</div>
+                <div class="text-xs text-zinc-500 mt-1" data-i="aprNote">
+                  Computed from full cash-flow if schedule is available (fees
+                  included when provided).
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Charts -->
+          <div class="card card-pad">
+            <h3 class="text-sm font-semibold mb-3" data-i="charts">Charts</h3>
+            <div class="grid grid-cols-1 gap-4">
+              <canvas id="balanceChart" height="130"></canvas>
+              <canvas id="stackedChart" height="130"></canvas>
+            </div>
+          </div>
+
+          <!-- Amortization -->
+          <div class="card card-pad">
+            <h3 class="text-sm font-semibold mb-3" data-i="amortizationTable">
+              Amortization table
+            </h3>
+            <div class="overflow-auto max-h-[420px] table-sticky">
+              <table class="min-w-full text-sm">
+                <thead class="text-left">
+                  <tr class="border-b border-zinc-200 dark:border-zinc-800">
+                    <th class="py-2 pr-3">#</th>
+                    <th class="py-2 pr-3" data-i="month">Month</th>
+                    <th class="py-2 pr-3" data-i="balanceStart">
+                      Balance start
+                    </th>
+                    <th class="py-2 pr-3" data-i="newDisb">New disb.</th>
+                    <th class="py-2 pr-3" data-i="interest">Interest</th>
+                    <th class="py-2 pr-3" data-i="payment">Payment</th>
+                    <th class="py-2 pr-3" data-i="principal">Principal</th>
+                    <th class="py-2 pr-3" data-i="overpay">Overpay</th>
+                    <th class="py-2 pr-3" data-i="balanceEnd">Balance end</th>
+                  </tr>
+                </thead>
+                <tbody id="amortBody"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <footer class="text-xs text-zinc-500 text-center">
+        <span>&copy; <span id="year"></span> LoanCalc</span>
+        <span class="mx-2">·</span>
+        <span data-i="disclaimer">Estimates only — check lender terms.</span>
+      </footer>
+    </main>
+
+    <script>
+      /** =========== CONFIG =========== */
+      const CONFIG = {
+        // Change this to match your backend route. Leave empty to force client-side calc.
+        backendUrl: "/calculate",
+        // Version tag (shown in UI)
+        version: "ui-2025.09",
+      };
+
+      /** =========== i18n (PL/EN) =========== */
+      const STRINGS = {
+        en: {
+          basics: "Basics",
+          principal: "Principal",
+          downPayment: "Down payment",
+          rate: "Annual rate (%)",
+          termMonths: "Term (months)",
+          startDate: "Start date",
+          installmentType: "Installment",
+          fees: "Upfront fees / costs (PLN, optional)",
+          tranches: "Tranches",
+          add: "Add",
+          trancheHint:
+            "Example: 2025-10: 80, 2025-11: 90 (values are thousands or adjust to your currency convention).",
+          overpayments: "Overpayments",
+          monthlyOverpayment: "Monthly overpayment",
+          overpayMode: "Overpayment mode",
+          shortenTerm: "Shorten term",
+          lowerInstallment: "Lower future payment",
+          oneoffOverpayment: "One-off overpayment",
+          calculate: "Calculate",
+          exportCsv: "Export CSV",
+          shareLink: "Share link",
+          reset: "Reset",
+          monthlyPayment: "Monthly payment",
+          totalInterest: "Total interest",
+          totalPaid: "Total paid",
+          payoffDate: "Payoff date",
+          apr: "APR / RRSO",
+          aprNote:
+            "Computed from full cash-flow if schedule is available (fees included when provided).",
+          charts: "Charts",
+          amortizationTable: "Amortization table",
+          month: "Month",
+          balanceStart: "Balance start",
+          newDisb: "New disb.",
+          interest: "Interest",
+          payment: "Payment",
+          principal: "Principal",
+          overpay: "Overpay",
+          balanceEnd: "Balance end",
+          disclaimer: "Estimates only — check lender terms.",
+        },
+        pl: {
+          basics: "Podstawy",
+          principal: "Kwota kredytu",
+          downPayment: "Wkład własny",
+          rate: "Oprocentowanie roczne (%)",
+          termMonths: "Okres (mies.)",
+          startDate: "Data startu",
+          installmentType: "Rata",
+          fees: "Koszty początkowe (PLN, opcjonalnie)",
+          tranches: "Transze",
+          add: "Dodaj",
+          trancheHint:
+            "Przykład: 2025-10: 80, 2025-11: 90 (wartości w tys., albo dopasuj).",
+          overpayments: "Nadpłaty",
+          monthlyOverpayment: "Miesięczna nadpłata",
+          overpayMode: "Tryb nadpłaty",
+          shortenTerm: "Skracaj okres",
+          lowerInstallment: "Obniżaj ratę",
+          oneoffOverpayment: "Jednorazowa nadpłata",
+          calculate: "Oblicz",
+          exportCsv: "Eksport CSV",
+          shareLink: "Udostępnij",
+          reset: "Reset",
+          monthlyPayment: "Rata miesięczna",
+          totalInterest: "Suma odsetek",
+          totalPaid: "Suma płatności",
+          payoffDate: "Data spłaty",
+          apr: "RRSO",
+          aprNote: "Liczone z pełnych przepływów (z opłatami gdy podane).",
+          charts: "Wykresy",
+          amortizationTable: "Harmonogram",
+          month: "Miesiąc",
+          balanceStart: "Saldo start",
+          newDisb: "Nowa wypłata",
+          interest: "Odsetki",
+          payment: "Płatność",
+          principal: "Kapitał",
+          overpay: "Nadpłata",
+          balanceEnd: "Saldo koniec",
+          disclaimer: "Wyniki poglądowe — wiążące dane u kredytodawcy.",
+        },
+      };
+      let lang = localStorage.getItem("lang") || "en";
+      function applyI18n() {
+        document.querySelectorAll("[data-i]").forEach((el) => {
+          const key = el.getAttribute("data-i");
+          el.textContent = STRINGS[lang][key] ?? key;
+        });
+      }
+
+      /** =========== Theme =========== */
+      const prefersDark = window.matchMedia(
+        "(prefers-color-scheme: dark)"
+      ).matches;
+      const startDark =
+        localStorage.getItem("theme") ?? (prefersDark ? "dark" : "light");
+      if (startDark === "dark") document.documentElement.classList.add("dark");
+      function toggleTheme() {
+        document.documentElement.classList.toggle("dark");
+        localStorage.setItem(
+          "theme",
+          document.documentElement.classList.contains("dark") ? "dark" : "light"
+        );
+      }
+
+      /** =========== Utilities =========== */
+      function fmt(n) {
+        if (n === null || n === undefined || Number.isNaN(n)) return "—";
+        return n.toLocaleString(undefined, { maximumFractionDigits: 2 });
+      }
+      function fmtMoney(n) {
+        if (n === null || n === undefined || Number.isNaN(n)) return "—";
+        return n.toLocaleString(undefined, {
+          style: "currency",
+          currency: "PLN",
+        });
+      }
+      function ym(date) {
+        return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(
+          2,
+          "0"
+        )}`;
+      }
+      function addMonths(date, m) {
+        const d = new Date(date);
+        d.setMonth(d.getMonth() + m);
+        return d;
+      }
+
+      /** =========== Tranches UI =========== */
+      const trancheList = document.getElementById("trancheList");
+      function addTrancheRow(valueMonth = "", valueAmount = "") {
+        const id = crypto.randomUUID();
+        const row = document.createElement("div");
+        row.className = "grid grid-cols-5 gap-2 items-end";
+        row.dataset.id = id;
+        row.innerHTML = `
+    <div class="col-span-2">
+      <label class="text-sm mb-1 block">${STRINGS[lang].month}</label>
+      <input type="month" class="input" value="${valueMonth}">
     </div>
-</body>
+    <div class="col-span-2">
+      <label class="text-sm mb-1 block">${STRINGS[lang].newDisb}</label>
+      <input type="number" class="input" min="0" step="1000" placeholder="e.g. 80000" value="${valueAmount}">
+    </div>
+    <div class="col-span-1">
+      <button class="btn w-full" data-action="remove">✕</button>
+    </div>
+  `;
+        trancheList.appendChild(row);
+        row
+          .querySelector('[data-action="remove"]')
+          .addEventListener("click", () => row.remove());
+      }
+      document
+        .getElementById("addTranche")
+        .addEventListener("click", () => addTrancheRow());
+
+      /** =========== State handling =========== */
+      function readStateFromUI() {
+        const tRows = [...trancheList.children]
+          .map((r) => {
+            const m = r.querySelector('input[type="month"]').value;
+            const v = parseFloat(
+              r.querySelector('input[type="number"]').value || "0"
+            );
+            return m ? { month: m, amount: v } : null;
+          })
+          .filter(Boolean);
+
+        return {
+          principal: +document.getElementById("principal").value || 0,
+          downPayment: +document.getElementById("downPayment").value || 0,
+          rate: +document.getElementById("rate").value || 0,
+          term: +document.getElementById("term").value || 0,
+          startDate: document.getElementById("startDate").value || null,
+          installmentType: document.getElementById("installmentType").value,
+          fees: +document.getElementById("fees").value || 0,
+          tranches: tRows,
+          monthlyOverpay: +document.getElementById("monthlyOverpay").value || 0,
+          overpayMode: document.getElementById("overpayMode").value,
+          oneOffOverpay: +document.getElementById("oneOffOverpay").value || 0,
+        };
+      }
+      function writeStateToUI(s) {
+        document.getElementById("principal").value = s.principal ?? "";
+        document.getElementById("downPayment").value = s.downPayment ?? "";
+        document.getElementById("rate").value = s.rate ?? "";
+        document.getElementById("term").value = s.term ?? "";
+        document.getElementById("startDate").value = s.startDate ?? "";
+        document.getElementById("installmentType").value =
+          s.installmentType ?? "annuity";
+        document.getElementById("fees").value = s.fees ?? "";
+        trancheList.innerHTML = "";
+        (s.tranches || []).forEach((t) => addTrancheRow(t.month, t.amount));
+        document.getElementById("monthlyOverpay").value =
+          s.monthlyOverpay ?? "";
+        document.getElementById("overpayMode").value = s.overpayMode ?? "term";
+        document.getElementById("oneOffOverpay").value = s.oneOffOverpay ?? "";
+      }
+      function saveLocal() {
+        localStorage.setItem(
+          "loanCalcState",
+          JSON.stringify(readStateFromUI())
+        );
+      }
+      function loadLocal() {
+        const raw = localStorage.getItem("loanCalcState");
+        if (!raw) return;
+        try {
+          writeStateToUI(JSON.parse(raw));
+        } catch {}
+      }
+
+      /** =========== CSV export =========== */
+      function downloadCSV(schedule) {
+        const header = [
+          "#",
+          "Month",
+          "BalanceStart",
+          "NewDisbursement",
+          "Interest",
+          "Payment",
+          "Principal",
+          "Overpayment",
+          "BalanceEnd",
+        ];
+        const rows = schedule.map((r, i) => [
+          i + 1,
+          r.month,
+          r.balance_start,
+          r.new_disbursement,
+          r.interest,
+          r.payment,
+          r.principal,
+          r.overpayment,
+          r.balance_end,
+        ]);
+        const csv = [header, ...rows].map((r) => r.join(",")).join("\n");
+        const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "amortization.csv";
+        a.click();
+        URL.revokeObjectURL(url);
+      }
+
+      /** =========== APR / IRR helpers =========== */
+      function irr(cashflows, guess = 0.01) {
+        // Simple Newton method on monthly IRR; cashflows: [{t: monthsFromStart, cf: amount}]
+        let rate = guess;
+        for (let iter = 0; iter < 50; iter++) {
+          let f = 0,
+            df = 0;
+          for (const { t, cf } of cashflows) {
+            const d = Math.pow(1 + rate, t);
+            f += cf / d;
+            df += (-t * cf) / (d * (1 + rate));
+          }
+          const newRate = rate - f / df;
+          if (!isFinite(newRate)) break;
+          if (Math.abs(newRate - rate) < 1e-10) {
+            rate = newRate;
+            break;
+          }
+          rate = Math.max(-0.9999, newRate);
+        }
+        return rate;
+      }
+      function aprFromSchedule(startMonth, schedule, fees = 0) {
+        // Cashflows: + = payout to borrower, - = payments by borrower
+        // Disbursements: treat as positive at their months; Fees: negative at t=0
+        const base = new Date(startMonth + "-01T00:00:00");
+        const cf = [];
+        if (fees > 0) cf.push({ t: 0, cf: -fees });
+        schedule.forEach((r, i) => {
+          const t = i; // monthly steps
+          if (r.new_disbursement > 0) cf.push({ t, cf: +r.new_disbursement });
+          if (r.payment > 0 || r.overpayment > 0) {
+            cf.push({ t, cf: -(r.payment + (r.overpayment || 0)) });
+          }
+        });
+        if (cf.length < 2) return null;
+        const mirr = irr(cf, 0.01); // monthly
+        if (!isFinite(mirr)) return null;
+        const apr = (Math.pow(1 + mirr, 12) - 1) * 100;
+        return apr;
+      }
+
+      /** =========== Minimal client-side annuity calculator (fallback) =========== */
+      function buildFallbackSchedule(s) {
+        // Simplified: assumes single disbursement at t=0 (principal - downPayment).
+        const P = Math.max(0, (s.principal || 0) - (s.downPayment || 0));
+        const r = (s.rate || 0) / 100 / 12;
+        const n = s.term || 0;
+        if (P <= 0 || r < 0 || n <= 0) return { kpis: null, schedule: [] };
+
+        // Base annuity payment
+        const basePayment =
+          r === 0
+            ? P / n
+            : (P * r * Math.pow(1 + r, n)) / (Math.pow(1 + r, n) - 1);
+        const monthlyOver = s.monthlyOverpay || 0;
+        const oneOff = s.oneOffOverpay || 0;
+        const shortenTerm = (s.overpayMode || "term") === "term";
+
+        const start = s.startDate
+          ? new Date(s.startDate + "-01T00:00:00")
+          : new Date();
+
+        let bal = P;
+        const schedule = [];
+        for (let i = 0; i < n && bal > 0; i++) {
+          const month = ym(addMonths(start, i));
+          const interest = bal * r;
+          let pay = Math.min(basePayment, bal + interest);
+          let over = monthlyOver || 0;
+          if (i === 0) over += oneOff || 0;
+
+          if (!shortenTerm) {
+            // lower future installment: add overpayment to principal this month, payment stays base
+            // (still reduces future interest)
+          } else {
+            // shorten term: treat totalPay = pay + over (cap at payoff)
+            pay = Math.min(pay + over, bal + interest);
+            over = 0;
+          }
+
+          const principal = Math.max(0, pay - interest);
+          bal = Math.max(0, bal - principal - (shortenTerm ? 0 : over));
+          schedule.push({
+            month,
+            balance_start: +(
+              bal +
+              principal +
+              (shortenTerm ? 0 : over)
+            ).toFixed(2),
+            new_disbursement: i === 0 ? P : 0,
+            interest: +interest.toFixed(2),
+            payment: +pay.toFixed(2),
+            principal: +principal.toFixed(2),
+            overpayment: +(shortenTerm ? 0 : over).toFixed(2),
+            balance_end: +bal.toFixed(2),
+          });
+          if (bal <= 0) break;
+        }
+
+        const totalPay = schedule.reduce(
+          (a, r) => a + r.payment + (r.overpayment || 0),
+          0
+        );
+        const totalInterest = schedule.reduce((a, r) => a + r.interest, 0);
+        const payoffDate =
+          schedule.length > 0 ? schedule[schedule.length - 1].month : null;
+        const apr = aprFromSchedule(
+          s.startDate || ym(new Date()),
+          schedule,
+          s.fees || 0
+        );
+
+        return {
+          kpis: {
+            monthlyPayment: basePayment + (shortenTerm ? 0 : monthlyOver),
+            totalInterest,
+            totalPaid: totalPay,
+            payoffDate,
+            apr,
+          },
+          schedule,
+        };
+      }
+
+      /** =========== Backend adapter =========== */
+      async function fetchBackend(s) {
+        const res = await fetch(CONFIG.backendUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            principal: s.principal,
+            annual_rate_percent: s.rate,
+            term_months: s.term,
+            start_date: s.startDate, // "YYYY-MM"
+            down_payment: s.downPayment,
+            tranches: s.tranches, // [{month:"YYYY-MM", amount:Number}]
+            installment_type: s.installmentType, // "annuity" | "decreasing"
+            overpayment: {
+              monthly: s.monthlyOverpay,
+              mode: s.overpayMode, // "term" | "installment"
+              one_off: s.oneOffOverpay,
+            },
+            fees: s.fees,
+          }),
+        });
+        if (!res.ok) throw new Error("Backend error");
+        // Expected shape:
+        // { schedule:[{month,balance_start,new_disbursement,interest,payment,principal,overpayment,balance_end}], summary:{monthly_payment,total_interest,total_paid,payoff_date,apr}}
+        return res.json();
+      }
+
+      /** =========== Render =========== */
+      let balanceChart, stackedChart;
+      function drawCharts(schedule) {
+        const ctx1 = document.getElementById("balanceChart");
+        const ctx2 = document.getElementById("stackedChart");
+        const labels = schedule.map((r) => r.month);
+        const bal = schedule.map((r) => r.balance_end);
+        const principal = schedule.map((r) => r.principal);
+        const interest = schedule.map((r) => r.interest);
+
+        // Destroy previous
+        [balanceChart, stackedChart].forEach((c) => c && c.destroy());
+
+        balanceChart = new Chart(ctx1, {
+          type: "line",
+          data: {
+            labels,
+            datasets: [{ label: "Balance", data: bal, tension: 0.25 }],
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+          },
+        });
+
+        stackedChart = new Chart(ctx2, {
+          type: "bar",
+          data: {
+            labels,
+            datasets: [
+              { label: "Principal", data: principal, stack: "s" },
+              { label: "Interest", data: interest, stack: "s" },
+            ],
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { position: "top" } },
+            scales: { x: { stacked: true }, y: { stacked: true } },
+          },
+        });
+      }
+
+      function renderTable(schedule) {
+        const body = document.getElementById("amortBody");
+        body.innerHTML = "";
+        for (let i = 0; i < schedule.length; i++) {
+          const r = schedule[i];
+          const tr = document.createElement("tr");
+          tr.className = "border-b border-zinc-100 dark:border-zinc-800";
+          tr.innerHTML = `
+      <td class="py-2 pr-3">${i + 1}</td>
+      <td class="py-2 pr-3">${r.month}</td>
+      <td class="py-2 pr-3">${fmtMoney(r.balance_start)}</td>
+      <td class="py-2 pr-3">${fmtMoney(r.new_disbursement)}</td>
+      <td class="py-2 pr-3">${fmtMoney(r.interest)}</td>
+      <td class="py-2 pr-3">${fmtMoney(r.payment)}</td>
+      <td class="py-2 pr-3">${fmtMoney(r.principal)}</td>
+      <td class="py-2 pr-3">${fmtMoney(r.overpayment || 0)}</td>
+      <td class="py-2 pr-3">${fmtMoney(r.balance_end)}</td>
+    `;
+          body.appendChild(tr);
+        }
+      }
+
+      /** =========== Actions =========== */
+      async function calculate() {
+        const s = readStateFromUI();
+        const kpiPayment = document.getElementById("kpiPayment");
+        const kpiTotalInterest = document.getElementById("kpiTotalInterest");
+        const kpiTotalPaid = document.getElementById("kpiTotalPaid");
+        const kpiPayoffDate = document.getElementById("kpiPayoffDate");
+        const kpiAPR = document.getElementById("kpiAPR");
+
+        let schedule = [],
+          kpis = null;
+
+        try {
+          if (CONFIG.backendUrl) {
+            const data = await fetchBackend(s);
+            if (data && data.schedule) {
+              schedule = data.schedule;
+              kpis = {
+                monthlyPayment: data.summary?.monthly_payment ?? null,
+                totalInterest: data.summary?.total_interest ?? null,
+                totalPaid: data.summary?.total_paid ?? null,
+                payoffDate: data.summary?.payoff_date ?? null,
+                apr:
+                  data.summary?.apr ??
+                  aprFromSchedule(
+                    s.startDate || ym(new Date()),
+                    schedule,
+                    s.fees || 0
+                  ),
+              };
+            }
+          }
+        } catch (e) {
+          console.warn("Backend not available, using fallback.", e);
+        }
+        if (schedule.length === 0) {
+          const fb = buildFallbackSchedule(s);
+          schedule = fb.schedule;
+          kpis = fb.kpis;
+        }
+
+        // KPIs
+        kpiPayment.textContent = fmtMoney(kpis?.monthlyPayment);
+        kpiTotalInterest.textContent = fmtMoney(kpis?.totalInterest);
+        kpiTotalPaid.textContent = fmtMoney(kpis?.totalPaid);
+        kpiPayoffDate.textContent = kpis?.payoffDate ?? "—";
+        kpiAPR.textContent = kpis?.apr ? `${kpis.apr.toFixed(2)}%` : "—";
+
+        // Table & charts
+        renderTable(schedule);
+        drawCharts(schedule);
+
+        // Enable CSV
+        document.getElementById("exportBtn").disabled = schedule.length === 0;
+
+        saveLocal();
+      }
+
+      function shareLink() {
+        const state = readStateFromUI();
+        const encoded = btoa(
+          unescape(encodeURIComponent(JSON.stringify(state)))
+        );
+        const url = new URL(location.href);
+        url.hash = `state=${encoded}`;
+        navigator.clipboard.writeText(url.toString()).then(() => {
+          alert(
+            lang === "pl"
+              ? "Skopiowano link do schowka"
+              : "Link copied to clipboard"
+          );
+        });
+      }
+      function restoreFromHash() {
+        if (!location.hash.startsWith("#state=")) return false;
+        try {
+          const raw = decodeURIComponent(escape(atob(location.hash.slice(7))));
+          const s = JSON.parse(raw);
+          writeStateToUI(s);
+          return true;
+        } catch {
+          return false;
+        }
+      }
+
+      function resetAll() {
+        localStorage.removeItem("loanCalcState");
+        location.hash = "";
+        trancheList.innerHTML = "";
+        document.querySelectorAll("input").forEach((i) => (i.value = ""));
+        document.getElementById("installmentType").value = "annuity";
+        document.getElementById("overpayMode").value = "term";
+        document.getElementById("fees").value = "";
+        document.getElementById("exportBtn").disabled = true;
+        document.getElementById("amortBody").innerHTML = "";
+        [
+          "kpiPayment",
+          "kpiTotalInterest",
+          "kpiTotalPaid",
+          "kpiPayoffDate",
+          "kpiAPR",
+        ].forEach((id) => (document.getElementById(id).textContent = "—"));
+      }
+
+      /** =========== Boot =========== */
+      window.addEventListener("DOMContentLoaded", () => {
+        document.getElementById("version").textContent = CONFIG.version;
+        document.getElementById("year").textContent = new Date().getFullYear();
+
+        // i18n
+        applyI18n();
+        document.getElementById("langToggle").addEventListener("click", () => {
+          lang = lang === "en" ? "pl" : "en";
+          localStorage.setItem("lang", lang);
+          applyI18n();
+        });
+
+        // Theme
+        document
+          .getElementById("themeToggle")
+          .addEventListener("click", toggleTheme);
+
+        // Buttons
+        document.getElementById("calcBtn").addEventListener("click", calculate);
+        document.getElementById("exportBtn").addEventListener("click", () => {
+          const rows = document.querySelectorAll("#amortBody tr");
+          if (rows.length === 0) return;
+          // reconstruct from table for simplicity
+          const schedule = [...rows].map((tr) => {
+            const td = tr.querySelectorAll("td");
+            return {
+              month: td[1].textContent,
+              balance_start:
+                parseFloat(td[2].textContent.replace(/[^\d.-]/g, "")) || 0,
+              new_disbursement:
+                parseFloat(td[3].textContent.replace(/[^\d.-]/g, "")) || 0,
+              interest:
+                parseFloat(td[4].textContent.replace(/[^\d.-]/g, "")) || 0,
+              payment:
+                parseFloat(td[5].textContent.replace(/[^\d.-]/g, "")) || 0,
+              principal:
+                parseFloat(td[6].textContent.replace(/[^\d.-]/g, "")) || 0,
+              overpayment:
+                parseFloat(td[7].textContent.replace(/[^\d.-]/g, "")) || 0,
+              balance_end:
+                parseFloat(td[8].textContent.replace(/[^\d.-]/g, "")) || 0,
+            };
+          });
+          downloadCSV(schedule);
+        });
+        document
+          .getElementById("shareBtn")
+          .addEventListener("click", shareLink);
+        document.getElementById("resetBtn").addEventListener("click", resetAll);
+
+        // Restore state: URL hash > localStorage
+        if (!restoreFromHash()) loadLocal();
+
+        // Prefill a sensible example for first-time users
+        if (
+          !localStorage.getItem("loanCalcState") &&
+          trancheList.children.length === 0
+        ) {
+          document.getElementById("principal").value = 988000;
+          document.getElementById("downPayment").value = 150000;
+          document.getElementById("rate").value = 6.19;
+          document.getElementById("term").value = 360;
+          document.getElementById("startDate").value = "2026-06";
+          addTrancheRow("2025-10", "80000");
+          addTrancheRow("2025-11", "90000");
+        }
+      });
+    </script>
+  </body>
 </html>
