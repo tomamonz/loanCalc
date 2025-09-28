@@ -24,10 +24,13 @@ jobs:
     deploy:
         runs-on: self-hosted
         env:
+            # Build/deploy context on the server
             APP_PATH: /opt/calc_app
             STACK_NAME: calc_stack
-            IMAGE_NAME: loan-calc-app
-            IMAGE_TAG: latest
+
+            # Image ref injected into compose
+            IMAGE_REPO: loan-calc-app # change if you push to a registry, e.g. ghcr.io/OWNER/loan-calc-app
+            IMAGE_TAG: latest # you can switch to ${{ github.sha }} for immutable tags later
 
         steps:
             - name: Checkout
@@ -35,56 +38,57 @@ jobs:
               with:
                   fetch-depth: 0
 
-            - name: Choose deploy context (APP_PATH or workspace)
-              id: ctx
+            - name: Sync build context to ${APP_PATH}
               run: |
-                  TARGET="${APP_PATH}"
-                  if mkdir -p "${TARGET}" 2>/dev/null; then
-                    echo "Using APP_PATH=${TARGET}"
-                    echo "CTX=${TARGET}" >> "$GITHUB_ENV"
-                  else
-                    echo "WARNING: ${TARGET} not usable; falling back to workspace"
-                    echo "CTX=${{ github.workspace }}" >> "$GITHUB_ENV"
-                  fi
-
-            - name: Sync source to context (only if context != workspace)
-              run: |
-                  echo "CTX is: ${CTX}"
-                  if [ "${CTX}" != "${{ github.workspace }}" ]; then
-                    echo "Syncing repo into ${CTX}"
-                    # one-time cleanup of any stray .git
-                    rm -rf "${CTX}/.git" || true
-                    rsync -a --delete --delete-excluded \
-                      --exclude '.git' \
-                      "${{ github.workspace }}/" "${CTX}/"
-                  else
-                    echo "CTX equals workspace; skipping rsync"
-                  fi
+                  echo "Syncing to ${APP_PATH}"
+                  mkdir -p "${APP_PATH}"
+                  # ensure no repo metadata bloats build context
+                  rm -rf "${APP_PATH}/.git" || true
+                  rsync -a --delete --delete-excluded \
+                    --exclude '.git' \
+                    "${{ github.workspace }}/" "${APP_PATH}/"
 
             - name: Verify context contents
               run: |
-                  echo "Listing CTX=${CTX}"
-                  ls -la "${CTX}"
-                  echo "Dockerfile size:"
-                  wc -c "${CTX}/Dockerfile" || true
-                  echo "docker-compose.yml size:"
-                  wc -c "${CTX}/docker-compose.yml" || true
+                  echo "Listing ${APP_PATH}:"
+                  ls -la "${APP_PATH}"
+                  echo "Dockerfile bytes:"; wc -c "${APP_PATH}/Dockerfile" || true
+                  echo "docker-compose.yml bytes:"; wc -c "${APP_PATH}/docker-compose.yml" || true
 
-            - name: Build image (tags as :latest to match compose)
+            - name: Build image (${IMAGE_REPO}:${IMAGE_TAG})
               run: |
-                  # Use ABSOLUTE paths to avoid snap /var/lib/snapd/void issues
-                  if [ ! -f "${CTX}/Dockerfile" ]; then
-                    echo "ERROR: ${CTX}/Dockerfile not found"; exit 1
-                  fi
                   docker build --pull \
-                    -f "${CTX}/Dockerfile" \
-                    -t "${IMAGE_NAME}:${IMAGE_TAG}" \
-                    "${CTX}"
+                    -f "${APP_PATH}/Dockerfile" \
+                    -t "${IMAGE_REPO}:${IMAGE_TAG}" \
+                    "${APP_PATH}"
+
+            # If you push to a registry for multi-node Swarm, uncomment:
+            # - name: Docker login
+            #   run: echo "${{ secrets.REGISTRY_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+            # - name: Push image
+            #   run: |
+            #     docker push "${IMAGE_REPO}:${IMAGE_TAG}"
+
+            - name: Render compose with vars (and re-quote cpus for Swarm)
+              run: |
+                  export IMAGE_REPO IMAGE_TAG
+                  docker compose \
+                    --project-directory "${APP_PATH}" \
+                    -f "${APP_PATH}/docker-compose.yml" \
+                    config > /tmp/stack.rendered.yml
+
+                  # Re-quote cpus because `compose config` strips quotes and Swarm requires strings
+                  sed -E -i 's/(cpus:\s*)([0-9]+(\.[0-9]+)?)/\1"\2"/g' /tmp/stack.rendered.yml
+
+                  echo "Resolved image lines:"
+                  grep -n 'image:' /tmp/stack.rendered.yml || true
+                  echo "Resolved cpus lines:"
+                  grep -n 'cpus:' /tmp/stack.rendered.yml || true
 
             - name: Deploy to Swarm (only on push)
               if: github.event_name == 'push'
               run: |
-                  docker stack deploy --prune -c "${APP_PATH}/docker-compose.yml" "${STACK_NAME}"
+                  docker stack deploy --prune -c /tmp/stack.rendered.yml "${STACK_NAME}"
 
             - name: Verify rollout (only on push)
               if: github.event_name == 'push'

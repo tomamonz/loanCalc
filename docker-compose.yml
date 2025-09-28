@@ -2,52 +2,17 @@ version: "3.8"
 
 services:
   calc_app:
-    image: ${IMAGE_REPO}:${IMAGE_TAG} # injected by deploy.yml step: docker compose config
-    # container_name: my-calc-container   # remove for Swarm
+    image: ${IMAGE_REPO}:${IMAGE_TAG} # resolved by the workflow's env
     ports:
-      - "8710:8710" # or use an ingress/edge router if you have one
-    volumes:
-      # Only keep if you truly want host logs. Make sure the dir exists and perms are correct.
-      - /opt/calc_app/logs:/app/logs
+      - "8710:8710"
     environment:
       - HOST=0.0.0.0
       - PORT=8710
-    healthcheck:
-      test:
-        [
-          "CMD",
-          "python",
-          "-c",
-          "import socket; s=socket.socket(); s.settimeout(1); s.connect(('127.0.0.1', 8710)); print('ok')",
-        ]
-      interval: 10s
-      timeout: 3s
-      retries: 5
-      start_period: 10s
     deploy:
-      replicas: 1
-      placement:
-        constraints:
-          - node.role == manager
-      update_config:
-        parallelism: 1
-        order: start-first
-        delay: 5s
-        failure_action: rollback
-      rollback_config:
-        parallelism: 0
-        order: stop-first
-      restart_policy:
-        condition: on-failure
       resources:
         limits:
-          cpus: "0.50"
+          cpus: "0.50" # must be strings in Swarm
           memory: "512M"
         reservations:
           cpus: "0.10"
           memory: "128M"
-    logging:
-      driver: json-file
-      options:
-        max-size: "10m"
-        max-file: "3"
