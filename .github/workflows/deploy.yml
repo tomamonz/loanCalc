@@ -81,22 +81,10 @@ jobs:
                     -t "${IMAGE_NAME}:${IMAGE_TAG}" \
                     "${CTX}"
 
-            - name: Render compose with absolute paths
-              run: |
-                  if [ ! -f "${CTX}/docker-compose.yml" ]; then
-                    echo "ERROR: ${CTX}/docker-compose.yml not found"; exit 1
-                  fi
-                  docker compose \
-                    --project-directory "${CTX}" \
-                    -f "${CTX}/docker-compose.yml" \
-                    config > /tmp/stack.rendered.yml
-                  echo "Rendered compose to /tmp/stack.rendered.yml"
-                  head -n 50 /tmp/stack.rendered.yml || true
-
             - name: Deploy to Swarm (only on push)
               if: github.event_name == 'push'
               run: |
-                  docker stack deploy --prune -c /tmp/stack.rendered.yml "${STACK_NAME}"
+                  docker stack deploy --prune -c "${APP_PATH}/docker-compose.yml" "${STACK_NAME}"
 
             - name: Verify rollout (only on push)
               if: github.event_name == 'push'
