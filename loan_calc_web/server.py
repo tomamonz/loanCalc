@@ -170,10 +170,12 @@ class LoanHandler(BaseHTTPRequestHandler):
 
 
 def run_server():
-    port = 8710
-    server_address = ("", port)
+    host = os.environ.get("HOST", "0.0.0.0")
+    port = int(os.environ.get("PORT", "8710"))
+    server_address = (host, port)
     httpd = HTTPServer(server_address, LoanHandler)
-    print(f"Serving on http://localhost:{port}")
+    display_host = "0.0.0.0" if host in ("", "0.0.0.0") else host
+    print(f"Serving on http://{display_host}:{port}")
     httpd.serve_forever()
 
 
