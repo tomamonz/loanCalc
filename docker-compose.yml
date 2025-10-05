@@ -8,3 +8,4 @@ services:
     environment:
       HOST: 0.0.0.0
       PORT: 8710
+      ASSET_VERSION: ${ASSET_VERSION:-1}

@@ -6,6 +6,7 @@ from loan_calc.main import build_config_from_options
 from loan_calc.engine import compute_schedule
 
 app = Flask(__name__)
+app.config["ASSET_VERSION"] = os.environ.get("ASSET_VERSION", "1")
 
 CURRENCY_OPTIONS = {
     'PLN': {'label': 'Polish z?oty', 'prefix': '', 'suffix': ' z?'},
@@ -93,6 +94,7 @@ def index():
         currency_options=CURRENCY_OPTIONS,
         currency_prefix=currency_meta["prefix"],
         currency_suffix=currency_meta["suffix"],
+        asset_version=app.config["ASSET_VERSION"],
     )
 
 
