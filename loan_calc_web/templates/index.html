@@ -33,6 +33,19 @@
 
                     <form method="POST" id="loanForm" class="loan-form">
                         <input type="hidden" name="show_full_schedule" id="show_full_schedule" value="{{ "1" if show_full_schedule else "0" }}">
+                        {% set overpayments_raw = request.form.get('overpayments', '').strip() %}
+                        {% set overpayments_namespace = namespace(items=[]) %}
+                        {% if overpayments_raw %}
+                            {% for entry in overpayments_raw.replace(',', '\n').splitlines() %}
+                                {% set cleaned = entry.strip() %}
+                                {% if cleaned %}
+                                    {% set parts = cleaned.split(':') %}
+                                    {% if parts|length == 3 %}
+                                        {% set _ = overpayments_namespace.items.append({'date': parts[0], 'amount': parts[1], 'type': parts[2]}) %}
+                                    {% endif %}
+                                {% endif %}
+                            {% endfor %}
+                        {% endif %}
                         {% set monthly_raw = request.form.get('monthly_overpayment', '') %}
                         {% if monthly_raw and ':' in monthly_raw %}
                             {% set monthly_value_prefill = monthly_raw.split(':')[0] %}
@@ -136,16 +149,6 @@
 
                             <div class="form-group">
                                 <label class="form-label with-tooltip">
-                                    <span>Overpayments</span>
-                                    <span class="tooltip" data-tooltip="YYYY-MM:AMOUNT:TYPE (term or installment), one per line">
-                                        <span class="tooltip-icon" aria-hidden="true">i</span>
-                                    </span>
-                                </label>
-                                <textarea id="overpayments" name="overpayments" class="form-input" rows="3" placeholder="2025-06:10000:term, 2026-01:5000:installment">{{ request.form.get('overpayments', '') }}</textarea>
-                            </div>
-
-                            <div class="form-group">
-                                <label class="form-label with-tooltip">
                                     <span>Monthly Overpayment</span>
                                     <span class="tooltip" data-tooltip="Recurring extra payment applied each month">
                                         <span class="tooltip-icon" aria-hidden="true">i</span>
@@ -175,6 +178,32 @@
                                     <input type="text" id="constant_payment" name="constant_payment" class="form-input" placeholder="4000" value="{{ request.form.get('constant_payment', '') }}">
                                     <span class="input-suffix">PLN</span>
                                 </div>
+                            </div>
+
+                            <div class="form-group">
+                                <label class="form-label with-tooltip">
+                                    <span>Overpayments</span>
+                                    <span class="tooltip" data-tooltip="Add individual overpayments and we will build the schedule for you">
+                                        <span class="tooltip-icon" aria-hidden="true">i</span>
+                                    </span>
+                                </label>
+                                <div class="overpayment-controls">
+                                    <div class="input-group">
+                                        <input type="month" id="overpayment_date" class="form-input" aria-label="Overpayment date">
+                                    </div>
+                                    <div class="input-group">
+                                        <input type="number" step="0.01" min="0" id="overpayment_amount" class="form-input" placeholder="1000" aria-label="Overpayment amount">
+                                        <span class="input-suffix">PLN</span>
+                                    </div>
+                                    <select id="overpayment_type" class="form-input" aria-label="Overpayment mode">
+                                        <option value="term">Reduce term</option>
+                                        <option value="installment">Reduce installment</option>
+                                    </select>
+                                    <button type="button" class="overpayment-add-btn" id="addOverpaymentBtn">Add</button>
+                                </div>
+                                <p class="overpayment-feedback" id="overpaymentFeedback"></p>
+                                <div class="overpayment-list" id="overpaymentList"></div>
+                                <input type="hidden" id="overpayments_hidden" name="overpayments" value="{{ overpayments_raw }}">
                             </div>
 
                             <!-- <div class="form-group">
@@ -322,6 +351,14 @@
         const monthlyValueInput = document.getElementById('monthly_overpayment_value');
         const monthlyTypeSelect = document.getElementById('monthly_overpayment_type');
         const monthlyHiddenInput = document.getElementById('monthly_overpayment_hidden');
+        let overpaymentItems = {{ overpayments_namespace.items | tojson }};
+        const overpaymentDateInput = document.getElementById('overpayment_date');
+        const overpaymentAmountInput = document.getElementById('overpayment_amount');
+        const overpaymentTypeSelect = document.getElementById('overpayment_type');
+        const overpaymentAddButton = document.getElementById('addOverpaymentBtn');
+        const overpaymentList = document.getElementById('overpaymentList');
+        const overpaymentHiddenInput = document.getElementById('overpayments_hidden');
+        const overpaymentFeedback = document.getElementById('overpaymentFeedback');
 
         function syncMonthlyOverpayment() {
             if (!monthlyHiddenInput) {
@@ -331,12 +368,71 @@
             const selectedType = monthlyTypeSelect ? monthlyTypeSelect.value : 'term';
             monthlyHiddenInput.value = rawValue ? `${rawValue}:${selectedType}` : '';
         }
+
+        function updateOverpaymentsHidden() {
+            if (!overpaymentHiddenInput) {
+                return;
+            }
+            overpaymentHiddenInput.value = overpaymentItems
+                .map(item => `${item.date}:${item.amount}:${item.type}`)
+                .join('\n');
+        }
+
+        function renderOverpaymentList() {
+            if (!overpaymentList) {
+                return;
+            }
+            if (!overpaymentItems.length) {
+                overpaymentList.innerHTML = '<p class="overpayment-empty">No overpayments added.</p>';
+                updateOverpaymentsHidden();
+                return;
+            }
+            overpaymentList.innerHTML = overpaymentItems
+                .map((item, index) => `
+                    <div class="overpayment-chip" data-index="${index}">
+                        <div class="overpayment-chip__info">
+                            <span class="overpayment-chip__date">${item.date}</span>
+                            <span class="overpayment-chip__amount">${item.amount} PLN</span>
+                            <span class="overpayment-chip__type">${item.type}</span>
+                        </div>
+                        <button type="button" class="overpayment-chip__remove" data-index="${index}" aria-label="Remove overpayment">&times;</button>
+                    </div>
+                `)
+                .join('');
+            updateOverpaymentsHidden();
+        }
+
+        function addOverpaymentItem() {
+            if (!overpaymentDateInput || !overpaymentAmountInput || !overpaymentTypeSelect) {
+                return;
+            }
+            const date = overpaymentDateInput.value.trim();
+            const amount = overpaymentAmountInput.value.trim();
+            const type = overpaymentTypeSelect.value;
+            if (!date || !amount) {
+                if (overpaymentFeedback) {
+                    overpaymentFeedback.textContent = 'Please provide both date and amount.';
+                    overpaymentFeedback.classList.add('is-visible');
+                }
+                return;
+            }
+            if (overpaymentFeedback) {
+                overpaymentFeedback.textContent = '';
+                overpaymentFeedback.classList.remove('is-visible');
+            }
+            overpaymentItems.push({ date, amount, type });
+            overpaymentDateInput.value = '';
+            overpaymentAmountInput.value = '';
+            overpaymentTypeSelect.value = 'term';
+            renderOverpaymentList();
+        }
         // Initialize app
         document.addEventListener('DOMContentLoaded', function() {
             setupEventListeners();
             setupProgressiveDisclosure();
             setupSmartDefaults();
             syncMonthlyOverpayment();
+            renderOverpaymentList();
 
             // Initialize charts if we have data
             {% if full_schedule %}
@@ -351,6 +447,7 @@
             if (loanForm) {
                 loanForm.addEventListener('submit', function() {
                     syncMonthlyOverpayment();
+                    updateOverpaymentsHidden();
                     if (!loanForm.dataset.forceFull && showFullInput) {
                         showFullInput.value = '0';
                     }
@@ -390,6 +487,22 @@
                 monthlyTypeSelect.addEventListener('change', syncMonthlyOverpayment);
             }
 
+            if (overpaymentAddButton) {
+                overpaymentAddButton.addEventListener('click', addOverpaymentItem);
+            }
+            if (overpaymentList) {
+                overpaymentList.addEventListener('click', function(event) {
+                    const target = event.target;
+                    if (target && target.classList.contains('overpayment-chip__remove')) {
+                        const index = Number(target.getAttribute('data-index'));
+                        if (!Number.isNaN(index)) {
+                            overpaymentItems.splice(index, 1);
+                            renderOverpaymentList();
+                        }
+                    }
+                });
+            }
+
             // Tab switching
             document.querySelectorAll('.tab-button').forEach(btn => {
                 btn.addEventListener('click', function() { switchTab(this.getAttribute('data-tab')); });
@@ -413,6 +526,7 @@
             if (showFullButton && loanForm && showFullInput) {
                 showFullButton.addEventListener('click', function() {
                     syncMonthlyOverpayment();
+                    updateOverpaymentsHidden();
                     showFullInput.value = '1';
                     loanForm.dataset.forceFull = '1';
                     if (typeof loanForm.requestSubmit === 'function') {
@@ -636,3 +750,5 @@
     </script>
 </body>
 </html>
+
+

@@ -685,3 +685,90 @@ select.form-input:focus {
 .loan-form {
   width: 100%;
 }
+.overpayment-controls {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 0.75rem;
+  align-items: end;
+  margin-top: 0.5rem;
+}
+
+.overpayment-controls .input-group {
+  margin: 0;
+}
+
+.overpayment-controls select {
+  min-width: 160px;
+}
+
+.overpayment-add-btn {
+  border: none;
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+  color: #fff;
+  font-weight: 600;
+  padding: 0.65rem 1rem;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: background 0.2s ease, transform 0.2s ease;
+}
+
+.overpayment-add-btn:hover {
+  background: var(--primary-dark);
+  transform: translateY(-1px);
+}
+
+.overpayment-list {
+  margin-top: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.overpayment-chip {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: rgba(31, 60, 136, 0.08);
+  border: 1px solid rgba(31, 60, 136, 0.18);
+  border-radius: var(--radius-md);
+  padding: 0.45rem 0.75rem;
+}
+
+.overpayment-chip__info {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  font-size: 0.9rem;
+}
+
+.overpayment-chip__remove {
+  border: none;
+  background: transparent;
+  color: var(--error);
+  font-size: 1.2rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0.25rem 0.4rem;
+  transition: color 0.2s ease;
+}
+
+.overpayment-chip__remove:hover {
+  color: #b91c1c;
+}
+
+.overpayment-empty {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+.overpayment-feedback {
+  font-size: 0.8rem;
+  color: var(--error);
+  margin-top: 0.5rem;
+  display: none;
+}
+
+.overpayment-feedback.is-visible {
+  display: block;
+}
