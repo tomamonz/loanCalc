@@ -10,6 +10,7 @@ with a summary dictionary.
 from __future__ import annotations
 
 from datetime import date
+from dataclasses import replace
 from decimal import Decimal, getcontext
 from typing import Dict, Iterable, List, Tuple
 
@@ -62,7 +63,7 @@ def _prepare_tranches(tranches: Iterable[Tranche]) -> Dict[date, Decimal]:
     return mapping
 
 
-def compute_schedule(config: LoanConfig) -> Tuple[List[ScheduleEntry], Dict[str, object]]:
+def compute_schedule(config: LoanConfig, *, include_comparison: bool = True) -> Tuple[List[ScheduleEntry], Dict[str, object]]:
     """Compute the amortization schedule and summary for a loan.
 
     Parameters
@@ -258,7 +259,7 @@ def compute_schedule(config: LoanConfig) -> Tuple[List[ScheduleEntry], Dict[str,
 
         # Recalculate monthly payment for reduce_installment after applying payment
         if reduce_installment_flag and principal > 0 and remaining_term > 1:
-            # For annuity loans re‑amortize with same rate and one less remaining_term
+            # For annuity loans reâ€‘amortize with same rate and one less remaining_term
             if loan_type == 'annuity':
                 remaining_term -= 1
                 monthly_payment = _calculate_annuity_payment(principal, rate_per_month, remaining_term)
@@ -354,5 +355,20 @@ def compute_schedule(config: LoanConfig) -> Tuple[List[ScheduleEntry], Dict[str,
         "payments_made": payments_made,
         "max_payment": max_payment,
     }
+
+    if include_comparison and (config.overpayments or config.target_payment):
+        baseline_config = replace(config, overpayments=[], target_payment=None)
+        _, baseline_summary = compute_schedule(baseline_config, include_comparison=False)
+        interest_saved = baseline_summary["total_interest"] - summary["total_interest"]
+        cost_saved = baseline_summary["total_cost"] - summary["total_cost"]
+        months_saved = max(0, baseline_summary.get("payments_made", 0) - summary["payments_made"])
+        summary["comparison"] = {
+            "baseline_total_interest": baseline_summary["total_interest"],
+            "baseline_total_cost": baseline_summary["total_cost"],
+            "baseline_payoff_date": baseline_summary["new_end_date"],
+            "interest_saved": interest_saved,
+            "total_cost_saved": cost_saved,
+            "months_saved": months_saved,
+        }
 
     return schedule, summary

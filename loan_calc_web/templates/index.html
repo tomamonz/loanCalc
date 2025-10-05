@@ -1,72 +1,754 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Loan Calculator</title>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/modern-normalize/1.1.0/modern-normalize.min.css" />
-    <link rel="stylesheet" href="/static/style.css" />
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LoanCalc Insights</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
-    <div class="container">
-        <h1>Loan Calculator</h1>
-        {% if error %}
-        <div class="error">{{ error }}</div>
-        {% endif %}
-        <form method="post" class="calc-form">
-            <div class="form-row">
-                <label for="principal">Principal</label>
-                <input type="text" id="principal" name="principal" placeholder="e.g. 988000" required />
+    <div class="app-container">
+        <header class="header">
+            <div class="header-content">
+                <div class="logo">
+                    <span class="logo-mark">LC</span>
+                    <div class="logo-copy">
+                        <span class="logo-title">LoanCalc Insights</span>
+                        <span class="logo-subtitle">Portfolio amortization workspace</span>
+                    </div>
+                </div>
+                <div class="header-note">Finance Analytics | loan_calc engine</div>
             </div>
-            <div class="form-row">
-                <label for="rate">Annual Rate (%)</label>
-                <input type="number" step="0.01" id="rate" name="rate" placeholder="e.g. 6.19" required />
-            </div>
-            <div class="form-row">
-                <label for="term">Term (months)</label>
-                <input type="number" id="term" name="term" placeholder="e.g. 360" required />
-            </div>
-            <div class="form-row">
-                <label for="loan_type">Installment Type</label>
-                <select id="loan_type" name="loan_type">
-                    <option value="annuity">Annuity</option>
-                    <option value="decreasing">Decreasing</option>
-                </select>
-            </div>
-            <div class="form-row">
-                <label for="start_date">Start Date</label>
-                <input type="month" id="start_date" name="start_date" required />
-            </div>
-            <div class="form-row">
-                <label for="down_payment">Down Payment</label>
-                <input type="text" id="down_payment" name="down_payment" placeholder="e.g. 150000" />
-            </div>
-            <div class="form-row">
-                <label for="tranches">Tranches</label>
-                <textarea id="tranches" name="tranches" placeholder="YYYY-MM:PERCENT, one per line or comma-separated"></textarea>
-            </div>
-            <div class="form-row">
-                <label for="overpayments">Overpayments</label>
-                <textarea id="overpayments" name="overpayments" placeholder="YYYY-MM:AMOUNT:TYPE, one per line or comma-separated"></textarea>
-            </div>
-            <div class="form-row">
-                <label for="monthly_overpayment">Monthly Overpayment</label>
-                <input type="text" id="monthly_overpayment" name="monthly_overpayment" placeholder="AMOUNT:TYPE (e.g. 500:term)" />
-            </div>
-            <div class="form-row">
-                <label for="constant_payment">Constant Payment</label>
-                <input type="text" id="constant_payment" name="constant_payment" placeholder="e.g. 7000" />
-            </div>
-            <div class="form-row">
-                <label for="holidays">Holidays</label>
-                <textarea id="holidays" name="holidays" placeholder="YYYY-MM, one per line or comma-separated"></textarea>
-            </div>
-            <div class="form-row">
-                <button type="submit">Calculate</button>
-            </div>
-        </form>
+        </header>
 
-        <!-- The results page is generated dynamically by the server. -->
+        <main class="main-content">
+            {% if error %}
+            <div class="error-message">{{ error }}</div>
+            {% endif %}
+
+            <div class="calculator-grid">
+                <section class="input-panel">
+                    <h2 class="panel-title">Loan Scenario</h2>
+
+                    <form method="POST" id="loanForm" class="loan-form">
+                        <input type="hidden" name="show_full_schedule" id="show_full_schedule" value="{{ "1" if show_full_schedule else "0" }}">
+                        {% set overpayments_raw = request.form.get('overpayments', '').strip() %}
+                        {% set overpayments_namespace = namespace(items=[]) %}
+                        {% if overpayments_raw %}
+                            {% for entry in overpayments_raw.replace(',', '\n').splitlines() %}
+                                {% set cleaned = entry.strip() %}
+                                {% if cleaned %}
+                                    {% set parts = cleaned.split(':') %}
+                                    {% if parts|length == 3 %}
+                                        {% set _ = overpayments_namespace.items.append({'date': parts[0], 'amount': parts[1], 'type': parts[2]}) %}
+                                    {% endif %}
+                                {% endif %}
+                            {% endfor %}
+                        {% endif %}
+                        {% set monthly_raw = request.form.get('monthly_overpayment', '') %}
+                        {% if monthly_raw and ':' in monthly_raw %}
+                            {% set monthly_value_prefill = monthly_raw.split(':')[0] %}
+                            {% set monthly_type_prefill = monthly_raw.split(':')[1] %}
+                        {% else %}
+                            {% set monthly_value_prefill = monthly_raw %}
+                            {% set monthly_type_prefill = 'term' %}
+                        {% endif %}
+                        <div class="form-section">
+                            <div class="section-heading">
+                                <h3 class="section-title">Scenario Inputs</h3>
+                                <p class="section-help">Configure base lending parameters for this scenario.</p>
+                            </div>
+
+                            <div class="form-group">
+                                <label class="form-label with-tooltip">
+                                    <span>Loan Amount</span>
+                                    <span class="tooltip" data-tooltip="Total amount you want to borrow">
+                                        <span class="tooltip-icon" aria-hidden="true">i</span>
+                                    </span>
+                                </label>
+                                <div class="input-group">
+                                    <input type="text" id="principal" name="principal" class="form-input" placeholder="500000" value="{{ request.form.get('principal', '500000') }}" required>
+                                    <span class="input-suffix">PLN</span>
+                                </div>
+                                <div class="quick-amounts">
+                                    <button type="button" class="quick-amount" data-value="500000">500K PLN</button>
+                                    <button type="button" class="quick-amount" data-value="750000">750K PLN</button>
+                                    <button type="button" class="quick-amount" data-value="1000000">1M PLN</button>
+                                </div>
+                            </div>
+
+                            <div class="form-grid">
+                                <div class="form-group">
+                                    <label class="form-label">Interest Rate (%)</label>
+                                    <div class="input-group">
+                                        <input type="number" id="rate" name="rate" class="form-input" step="0.01" value="{{ request.form.get('rate', '6.5') }}" min="0" max="20" required>
+                                        <span class="input-suffix">%</span>
+                                    </div>
+                                    <div class="slider-container">
+                                        <input type="range" id="rateSlider" class="slider" min="1" max="15" step="0.1" value="{{ request.form.get('rate', '6.5') }}">
+                                    </div>
+                                </div>
+
+                                <div class="form-group">
+                                    <label class="form-label">Loan Term</label>
+                                    <div class="input-group">
+                                        <input type="number" id="term" name="term" class="form-input" value="{{ request.form.get('term', '360') }}" min="12" max="480" required>
+                                        <span class="input-suffix">months</span>
+                                    </div>
+                                    <div class="slider-container">
+                                        <input type="range" id="termSlider" class="slider" min="60" max="480" step="12" value="{{ request.form.get('term', '360') }}">
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="form-grid">
+                                <div class="form-group">
+                                    <label class="form-label">Loan Type</label>
+                                    <select id="loan_type" name="loan_type" class="form-input">
+                                        <option value="annuity" {% if request.form.get('loan_type') == 'annuity' %}selected{% endif %}>Fixed Payment (Annuity)</option>
+                                        <option value="decreasing" {% if request.form.get('loan_type') == 'decreasing' %}selected{% endif %}>Decreasing Payment</option>
+                                    </select>
+                                </div>
+
+                                <div class="form-group">
+                                    <label class="form-label">Start Date</label>
+                                    <input type="month" id="start_date" name="start_date" class="form-input" value="{{ request.form.get('start_date', '2024-01') }}" required>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="form-section" id="advancedSection">
+                            <div class="section-heading">
+                                <h3 class="section-title">Advanced Adjustments</h3>
+                                <p class="section-help">Fine-tune disbursements, overpayments, and payment holidays.</p>
+                            </div>
+
+                            <div class="form-group">
+                                <label class="form-label with-tooltip">
+                                    <span>Down Payment</span>
+                                    <span class="tooltip" data-tooltip="Amount paid upfront">
+                                        <span class="tooltip-icon" aria-hidden="true">i</span>
+                                    </span>
+                                </label>
+                                <div class="input-group">
+                                    <input type="text" id="down_payment" name="down_payment" class="form-input" placeholder="100000" value="{{ request.form.get('down_payment', '') }}">
+                                    <span class="input-suffix">PLN</span>
+                                </div>
+                            </div>
+
+                            <!-- <div class="form-group">
+                                <label class="form-label with-tooltip">
+                                    <span>Tranches</span>
+                                    <span class="tooltip" data-tooltip="YYYY-MM:PERCENT, one per line or comma-separated">
+                                        <span class="tooltip-icon" aria-hidden="true">i</span>
+                                    </span>
+                                </label>
+                                <textarea id="tranches" name="tranches" class="form-input" rows="3" placeholder="2024-06:0.5, 2024-12:1.0">{{ request.form.get('tranches', '') }}</textarea>
+                            </div> -->
+
+                            <div class="form-group">
+                                <label class="form-label with-tooltip">
+                                    <span>Monthly Overpayment</span>
+                                    <span class="tooltip" data-tooltip="Recurring extra payment applied each month">
+                                        <span class="tooltip-icon" aria-hidden="true">i</span>
+                                    </span>
+                                </label>
+                                <div class="form-grid">
+                                    <div class="input-group">
+                                        <input type="number" step="0.01" min="0" id="monthly_overpayment_value" name="monthly_overpayment_value" class="form-input" placeholder="500" value="{{ monthly_value_prefill }}">
+                                        <span class="input-suffix">PLN</span>
+                                    </div>
+                                    <select id="monthly_overpayment_type" name="monthly_overpayment_type" class="form-input">
+                                        <option value="term" {% if monthly_type_prefill == 'term' %}selected{% endif %}>Reduce term</option>
+                                        <option value="installment" {% if monthly_type_prefill == 'installment' %}selected{% endif %}>Reduce installment</option>
+                                    </select>
+                                </div>
+                                <input type="hidden" id="monthly_overpayment_hidden" name="monthly_overpayment" value="{{ monthly_raw }}">
+                            </div>
+
+                            <div class="form-group">
+                                <label class="form-label with-tooltip">
+                                    <span>Constant Payment</span>
+                                    <span class="tooltip" data-tooltip="Fixed total monthly payment - excess goes to principal">
+                                        <span class="tooltip-icon" aria-hidden="true">i</span>
+                                    </span>
+                                </label>
+                                <div class="input-group">
+                                    <input type="text" id="constant_payment" name="constant_payment" class="form-input" placeholder="4000" value="{{ request.form.get('constant_payment', '') }}">
+                                    <span class="input-suffix">PLN</span>
+                                </div>
+                            </div>
+
+                            <div class="form-group">
+                                <label class="form-label with-tooltip">
+                                    <span>Overpayments</span>
+                                    <span class="tooltip" data-tooltip="Add individual overpayments and we will build the schedule for you">
+                                        <span class="tooltip-icon" aria-hidden="true">i</span>
+                                    </span>
+                                </label>
+                                <div class="overpayment-controls">
+                                    <div class="input-group">
+                                        <input type="month" id="overpayment_date" class="form-input" aria-label="Overpayment date">
+                                    </div>
+                                    <div class="input-group">
+                                        <input type="number" step="0.01" min="0" id="overpayment_amount" class="form-input" placeholder="1000" aria-label="Overpayment amount">
+                                        <span class="input-suffix">PLN</span>
+                                    </div>
+                                    <select id="overpayment_type" class="form-input" aria-label="Overpayment mode">
+                                        <option value="term">Reduce term</option>
+                                        <option value="installment">Reduce installment</option>
+                                    </select>
+                                    <button type="button" class="overpayment-add-btn" id="addOverpaymentBtn">Add</button>
+                                </div>
+                                <p class="overpayment-feedback" id="overpaymentFeedback"></p>
+                                <div class="overpayment-list" id="overpaymentList"></div>
+                                <input type="hidden" id="overpayments_hidden" name="overpayments" value="{{ overpayments_raw }}">
+                            </div>
+
+                            <!-- <div class="form-group">
+                                <label class="form-label with-tooltip">
+                                    <span>Holidays</span>
+                                    <span class="tooltip" data-tooltip="Payment-free months: YYYY-MM, one per line">
+                                        <span class="tooltip-icon" aria-hidden="true">i</span>
+                                    </span>
+                                </label>
+                                <textarea id="holidays" name="holidays" class="form-input" rows="2" placeholder="2025-12, 2026-12">{{ request.form.get('holidays', '') }}</textarea>
+                            </div> -->
+                        </div>
+
+                        <button type="submit" class="calculate-btn">
+                            <span id="calculateText">Run Analysis</span>
+                            <span id="calculateLoading" class="loading" style="display: none;"></span>
+                        </button>
+                    </form>
+                </section>
+
+                <section class="results-panel">
+                    {% if summary %}
+                    <div class="results-tabs" role="tablist">
+                        <button class="tab-button active" data-tab="summary" type="button">Summary</button>
+                        <button class="tab-button" data-tab="chart" type="button">Payment Chart</button>
+                        <button class="tab-button" data-tab="schedule" type="button">Schedule</button>
+                    </div>
+
+                    <div id="summaryTab" class="tab-content" role="tabpanel">
+                        <div class="summary-grid">
+                            <div class="metric-card">
+                                <p class="metric-label">Highest Payment</p>
+                                <p class="metric-value">{{ '{:,.2f}'.format(summary['max_payment']) }} PLN</p>
+                            </div>
+                            <div class="metric-card">
+                                <p class="metric-label">Total Interest</p>
+                                <p class="metric-value">{{ '{:,.0f}'.format(summary['total_interest']) }} PLN</p>
+                            </div>
+                            {% if summary.get('total_overpayment', 0) > 0 %}
+                            <div class="metric-card">
+                                <p class="metric-label">Total Overpayments</p>
+                                <p class="metric-value">{{ '{:,.0f}'.format(summary['total_overpayment']) }} PLN</p>
+                            </div>
+                            {% endif %}
+                            <div class="metric-card">
+                                <p class="metric-label">Total Cost</p>
+                                <p class="metric-value">{{ '{:,.0f}'.format(summary['total_cost']) }} PLN</p>
+                            </div>
+                            <div class="metric-card">
+                                <p class="metric-label">Payments Made</p>
+                                <p class="metric-value">{{ summary['payments_made'] }}</p>
+                            </div>
+                            <div class="metric-card">
+                                <p class="metric-label">Payoff Date</p>
+                                <p class="metric-value">{{ summary['new_end_date'] }}</p>
+                            </div>
+                        </div>
+                        <div class="chart-container">
+                            <canvas id="paymentChart"></canvas>
+                        </div>
+                        {% if summary.comparison %}
+                        <div class="impact-grid">
+                            <div class="impact-card">
+                                <span class="impact-label">Interest savings vs baseline</span>
+                                <span class="impact-value">{{ '{:,.0f}'.format(summary.comparison.interest_saved) }} PLN</span>
+                                <span class="impact-meta">Baseline total interest {{ '{:,.0f}'.format(summary.comparison.baseline_total_interest) }} PLN</span>
+                            </div>
+                            <div class="impact-card">
+                                <span class="impact-label">Total cash savings</span>
+                                <span class="impact-value">{{ '{:,.0f}'.format(summary.comparison.total_cost_saved) }} PLN</span>
+                                <span class="impact-meta">Baseline total cost {{ '{:,.0f}'.format(summary.comparison.baseline_total_cost) }} PLN</span>
+                            </div>
+                            {% if summary.comparison.months_saved %}
+                            <div class="impact-card">
+                                <span class="impact-label">Term reduction</span>
+                                <span class="impact-value">{{ summary.comparison.months_saved }} months</span>
+                                <span class="impact-meta">Baseline payoff {{ summary.comparison.baseline_payoff_date }}</span>
+                            </div>
+                            {% endif %}
+                        </div>
+                        {% endif %}
+                    </div>
+
+                    <div id="chartTab" class="tab-content" role="tabpanel" style="display: none;">
+                        <div class="chart-container">
+                            <canvas id="balanceChart"></canvas>
+                        </div>
+                    </div>
+
+                    <div id="scheduleTab" class="tab-content" role="tabpanel" style="display: none;">
+                        <div class="schedule-wrapper">
+                            <table class="schedule-table">
+                                <thead>
+                                    <tr>
+                                        <th>Period</th>
+                                        <th>Date</th>
+                                        <th>Payment</th>
+                                        <th>Principal</th>
+                                        <th>Interest</th>
+                                        <th>Overpayment</th>
+                                        <th>Balance</th>
+                                        <th>Holiday</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for row in schedule %}
+                                    <tr class="schedule-row{% if row.holiday %} schedule-row--holiday{% elif row.overpayment > 0 %} schedule-row--overpay{% endif %}">
+                                        <td>{{ row.period }}</td>
+                                        <td>{{ row.date.strftime('%Y-%m') }}</td>
+                                        <td>{{ '{:,.2f}'.format(row.payment) }} PLN</td>
+                                        <td>{{ '{:,.2f}'.format(row.principal_payment) }} PLN</td>
+                                        <td>{{ '{:,.2f}'.format(row.interest_payment) }} PLN</td>
+                                        <td>{% if row.overpayment > 0 %}{{ '{:,.2f}'.format(row.overpayment) }} PLN{% else %}-{% endif %}</td>
+                                        <td>{{ '{:,.0f}'.format(row.ending_balance) }} PLN</td>
+                                        <td>{% if row.holiday %}Yes{% else %}No{% endif %}</td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                            {% if summary.get('truncated') %}
+                            <p class="truncate-note">
+                                Showing first 120 periods. {{ summary.truncated }} additional periods withheld.
+                                <button type="button" class="truncate-action" id="showFullScheduleBtn">Show complete schedule</button>
+                            </p>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% else %}
+                    <div class="empty-state" role="status" aria-live="polite">
+                        <div class="empty-state__inner">
+                            <div class="empty-state-icon" aria-hidden="true">LC</div>
+                            <p>Configure a loan scenario and run the analysis to review amortization results.</p>
+                        </div>
+                    </div>
+                    {% endif %}
+                </section>
+            </div>
+        </main>
     </div>
+
+    <script>
+        // State management
+        let currentChart = null;
+        let currentBalanceChart = null;
+        const monthlyValueInput = document.getElementById('monthly_overpayment_value');
+        const monthlyTypeSelect = document.getElementById('monthly_overpayment_type');
+        const monthlyHiddenInput = document.getElementById('monthly_overpayment_hidden');
+        let overpaymentItems = {{ overpayments_namespace.items | tojson }};
+        const overpaymentDateInput = document.getElementById('overpayment_date');
+        const overpaymentAmountInput = document.getElementById('overpayment_amount');
+        const overpaymentTypeSelect = document.getElementById('overpayment_type');
+        const overpaymentAddButton = document.getElementById('addOverpaymentBtn');
+        const overpaymentList = document.getElementById('overpaymentList');
+        const overpaymentHiddenInput = document.getElementById('overpayments_hidden');
+        const overpaymentFeedback = document.getElementById('overpaymentFeedback');
+
+        function syncMonthlyOverpayment() {
+            if (!monthlyHiddenInput) {
+                return;
+            }
+            const rawValue = monthlyValueInput ? monthlyValueInput.value.trim() : '';
+            const selectedType = monthlyTypeSelect ? monthlyTypeSelect.value : 'term';
+            monthlyHiddenInput.value = rawValue ? `${rawValue}:${selectedType}` : '';
+        }
+
+        function updateOverpaymentsHidden() {
+            if (!overpaymentHiddenInput) {
+                return;
+            }
+            overpaymentHiddenInput.value = overpaymentItems
+                .map(item => `${item.date}:${item.amount}:${item.type}`)
+                .join('\n');
+        }
+
+        function renderOverpaymentList() {
+            if (!overpaymentList) {
+                return;
+            }
+            if (!overpaymentItems.length) {
+                overpaymentList.innerHTML = '<p class="overpayment-empty">No overpayments added.</p>';
+                updateOverpaymentsHidden();
+                return;
+            }
+            overpaymentList.innerHTML = overpaymentItems
+                .map((item, index) => `
+                    <div class="overpayment-chip" data-index="${index}">
+                        <div class="overpayment-chip__info">
+                            <span class="overpayment-chip__date">${item.date}</span>
+                            <span class="overpayment-chip__amount">${item.amount} PLN</span>
+                            <span class="overpayment-chip__type">${item.type}</span>
+                        </div>
+                        <button type="button" class="overpayment-chip__remove" data-index="${index}" aria-label="Remove overpayment">&times;</button>
+                    </div>
+                `)
+                .join('');
+            updateOverpaymentsHidden();
+        }
+
+        function addOverpaymentItem() {
+            if (!overpaymentDateInput || !overpaymentAmountInput || !overpaymentTypeSelect) {
+                return;
+            }
+            const date = overpaymentDateInput.value.trim();
+            const amount = overpaymentAmountInput.value.trim();
+            const type = overpaymentTypeSelect.value;
+            if (!date || !amount) {
+                if (overpaymentFeedback) {
+                    overpaymentFeedback.textContent = 'Please provide both date and amount.';
+                    overpaymentFeedback.classList.add('is-visible');
+                }
+                return;
+            }
+            if (overpaymentFeedback) {
+                overpaymentFeedback.textContent = '';
+                overpaymentFeedback.classList.remove('is-visible');
+            }
+            overpaymentItems.push({ date, amount, type });
+            overpaymentDateInput.value = '';
+            overpaymentAmountInput.value = '';
+            overpaymentTypeSelect.value = 'term';
+            renderOverpaymentList();
+        }
+        // Initialize app
+        document.addEventListener('DOMContentLoaded', function() {
+            setupEventListeners();
+            setupProgressiveDisclosure();
+            setupSmartDefaults();
+            syncMonthlyOverpayment();
+            renderOverpaymentList();
+
+            // Initialize charts if we have data
+            {% if full_schedule %}
+            initializeCharts();
+            {% endif %}
+        });
+
+        function setupEventListeners() {
+            // Form submission with loading state
+            const loanForm = document.getElementById('loanForm');
+            const showFullInput = document.getElementById('show_full_schedule');
+            if (loanForm) {
+                loanForm.addEventListener('submit', function() {
+                    syncMonthlyOverpayment();
+                    updateOverpaymentsHidden();
+                    if (!loanForm.dataset.forceFull && showFullInput) {
+                        showFullInput.value = '0';
+                    }
+                    loanForm.dataset.forceFull = '';
+                    showLoading(true);
+                });
+            }
+
+            // Slider synchronization
+            const rateSlider = document.getElementById('rateSlider');
+            const rateInput = document.getElementById('rate');
+            const termSlider = document.getElementById('termSlider');
+            const termInput = document.getElementById('term');
+
+            if (rateSlider && rateInput) {
+                rateSlider.addEventListener('input', function() { rateInput.value = this.value; });
+                rateInput.addEventListener('input', function() { rateSlider.value = this.value; });
+            }
+
+            if (termSlider && termInput) {
+                termSlider.addEventListener('input', function() { termInput.value = this.value; });
+                termInput.addEventListener('input', function() { termSlider.value = this.value; });
+            }
+
+            // Quick amount buttons
+            document.querySelectorAll('.quick-amount[data-value]').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    document.getElementById('principal').value = this.getAttribute('data-value');
+                });
+            });
+
+            if (monthlyValueInput) {
+                monthlyValueInput.addEventListener('input', syncMonthlyOverpayment);
+                monthlyValueInput.addEventListener('change', syncMonthlyOverpayment);
+            }
+            if (monthlyTypeSelect) {
+                monthlyTypeSelect.addEventListener('change', syncMonthlyOverpayment);
+            }
+
+            if (overpaymentAddButton) {
+                overpaymentAddButton.addEventListener('click', addOverpaymentItem);
+            }
+            if (overpaymentList) {
+                overpaymentList.addEventListener('click', function(event) {
+                    const target = event.target;
+                    if (target && target.classList.contains('overpayment-chip__remove')) {
+                        const index = Number(target.getAttribute('data-index'));
+                        if (!Number.isNaN(index)) {
+                            overpaymentItems.splice(index, 1);
+                            renderOverpaymentList();
+                        }
+                    }
+                });
+            }
+
+            // Tab switching
+            document.querySelectorAll('.tab-button').forEach(btn => {
+                btn.addEventListener('click', function() { switchTab(this.getAttribute('data-tab')); });
+            });
+
+            // Format currency inputs on blur
+            ['principal', 'down_payment', 'constant_payment'].forEach(id => {
+                const input = document.getElementById(id);
+                if (input) {
+                    input.addEventListener('blur', function() {
+                        const value = parseFloat(this.value.replace(/,/g, ''));
+                        if (!isNaN(value) && value > 0) {
+                            this.value = value.toLocaleString();
+                        }
+                    });
+                    input.addEventListener('focus', function() { this.value = this.value.replace(/,/g, ''); });
+                }
+            });
+
+            const showFullButton = document.getElementById('showFullScheduleBtn');
+            if (showFullButton && loanForm && showFullInput) {
+                showFullButton.addEventListener('click', function() {
+                    syncMonthlyOverpayment();
+                    updateOverpaymentsHidden();
+                    showFullInput.value = '1';
+                    loanForm.dataset.forceFull = '1';
+                    if (typeof loanForm.requestSubmit === 'function') {
+                        loanForm.requestSubmit();
+                    } else {
+                        loanForm.submit();
+                    }
+                });
+            }
+        }
+
+        function switchTab(tabName) {
+            document.querySelectorAll('.tab-button').forEach(btn => btn.classList.remove('active'));
+            document.querySelector(`[data-tab="${tabName}"]`)?.classList.add('active');
+
+            document.querySelectorAll('.tab-content').forEach(content => content.style.display = 'none');
+            const targetTab = document.getElementById(`${tabName}Tab`);
+            if (targetTab) {
+                targetTab.style.display = 'block';
+            }
+
+            if (tabName === 'chart') {
+                setTimeout(() => updateBalanceChart(), 100);
+            }
+        }
+
+        function initializeCharts() {
+            updatePaymentChart();
+        }
+
+        function updatePaymentChart() {
+            const ctx = document.getElementById('paymentChart')?.getContext('2d');
+            if (!ctx) return;
+
+            if (currentChart) {
+                currentChart.destroy();
+            }
+
+            {% if full_schedule %}
+            const scheduleData = {{ full_schedule | tojson | safe }};
+            {% else %}
+            const scheduleData = [];
+            {% endif %}
+
+            const labels = scheduleData.map((row, i) => `Month ${i + 1}`);
+            const principalData = scheduleData.map(row => parseFloat(row.principal_payment));
+            const interestData = scheduleData.map(row => parseFloat(row.interest_payment));
+
+            currentChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels,
+                    datasets: [{
+                        label: 'Principal',
+                        data: principalData,
+                        backgroundColor: '#10b981',
+                        borderRadius: 4
+                    }, {
+                        label: 'Interest',
+                        data: interestData,
+                        backgroundColor: '#f59e0b',
+                        borderRadius: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        x: {
+                            stacked: true,
+                            grid: { display: false }
+                        },
+                        y: {
+                            stacked: true,
+                            ticks: {
+                                callback: value => 'PLN' + value.toLocaleString()
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            position: 'top',
+                            labels: {
+                                usePointStyle: true
+                            }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                title: context => context[0].label,
+                                label: context => `${context.dataset.label}: $${context.parsed.y.toLocaleString()}`
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        function updateBalanceChart() {
+            const ctx = document.getElementById('balanceChart')?.getContext('2d');
+            if (!ctx) return;
+
+            if (currentBalanceChart) {
+                currentBalanceChart.destroy();
+            }
+
+            {% if full_schedule %}
+            const scheduleData = {{ full_schedule | tojson | safe }};
+            {% else %}
+            const scheduleData = [];
+            {% endif %}
+
+            const labels = scheduleData.map((row, i) => i + 1);
+            const balanceData = scheduleData.map(row => parseFloat(row.ending_balance));
+
+            currentBalanceChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels,
+                    datasets: [{
+                        label: 'Remaining Balance',
+                        data: balanceData,
+                        borderColor: '#2563eb',
+                        backgroundColor: 'rgba(37, 99, 235, 0.08)',
+                        borderWidth: 0.1,
+                        fill: true,
+                        tension: 0.15
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            backgroundColor: 'rgba(15, 23, 42, 0.9)',
+                            callbacks: {
+                                title: context => 'Month ' + context[0].label,
+                                label: context => `Balance: $${context.parsed.y.toLocaleString()}`
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            title: { display: true, text: 'Payment Number' },
+                            grid: { color: 'rgba(226, 232, 240, 0.5)' }
+                        },
+                        y: {
+                            title: { display: true, text: 'Remaining Balance' },
+                            ticks: {
+                                callback: value =>  value.toLocaleString() + ' PLN'
+                            },
+                            grid: { color: 'rgba(226, 232, 240, 0.5)' }
+                        }
+                    },
+                    animation: {
+                        duration: 900,
+                        easing: 'easeOutCubic'
+                    }
+                }
+            });
+        }
+
+        function showLoading(show) {
+            const text = document.getElementById('calculateText');
+            const loading = document.getElementById('calculateLoading');
+            if (text && loading) {
+                text.style.display = show ? 'none' : 'inline';
+                loading.style.display = show ? 'inline-block' : 'none';
+            }
+        }
+
+        function setupProgressiveDisclosure() {
+            const advancedSection = document.getElementById('advancedSection');
+            const basicSection = document.querySelector('.form-section');
+            if (!advancedSection || !basicSection) return;
+
+            const hasAdvancedValues = ['down_payment', 'tranches', 'overpayments', 'monthly_overpayment', 'constant_payment', 'holidays']
+                .some(id => document.getElementById(id)?.value.trim() !== '');
+
+            const toggleBtn = document.createElement('button');
+            toggleBtn.type = 'button';
+            toggleBtn.className = 'toggle-advanced';
+            toggleBtn.textContent = hasAdvancedValues ? 'Hide Advanced Adjustments' : 'Show Advanced Adjustments';
+            toggleBtn.addEventListener('click', function() {
+                const isHidden = advancedSection.style.display === 'none';
+                advancedSection.style.display = isHidden ? 'block' : 'none';
+                this.textContent = isHidden ? 'Hide Advanced Adjustments' : 'Show Advanced Adjustments';
+            });
+
+            basicSection.appendChild(toggleBtn);
+
+            if (!hasAdvancedValues) {
+                advancedSection.style.display = 'none';
+            }
+        }
+
+        function setupSmartDefaults() {
+            const principalInput = document.getElementById('principal');
+            const downPaymentInput = document.getElementById('down_payment');
+            const rateInput = document.getElementById('rate');
+
+            principalInput?.addEventListener('input', function() {
+                const value = parseFloat(this.value.replace(/,/g, ''));
+                if (value > 0 && downPaymentInput && !downPaymentInput.value) {
+                    const suggestedDown = Math.round(value * 0.2);
+                    downPaymentInput.placeholder = `Suggested: ${suggestedDown.toLocaleString()}`;
+                }
+            });
+
+            rateInput?.addEventListener('input', function() {
+                const value = parseFloat(this.value);
+                if (value > 10) {
+                    this.classList.add('input-warning');
+                    this.title = 'This seems like a high interest rate. Double-check your input.';
+                } else {
+                    this.classList.remove('input-warning');
+                    this.title = '';
+                }
+            });
+        }
+    </script>
 </body>
 </html>
+
+

@@ -33,6 +33,13 @@ def print_summary(summary: Dict[str, object]) -> None:
     # decreasing loans this corresponds to the first payment (before overpayments).
     if summary.get('max_payment'):
         print(f"Highest payment    : {summary['max_payment']:.2f}")
+    comparison = summary.get('comparison')
+    if comparison:
+        print(f"Baseline interest  : {comparison['baseline_total_interest']:.2f}")
+        print(f"Interest saved     : {comparison['interest_saved']:.2f}")
+        print(f"Total cost saved   : {comparison['total_cost_saved']:.2f}")
+        if comparison.get('months_saved'):
+            print(f"Term reduction     : {int(comparison['months_saved'])} months")
     print("-" * 72)
 
 

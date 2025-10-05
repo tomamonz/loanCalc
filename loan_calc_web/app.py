@@ -7,6 +7,12 @@ from loan_calc.engine import compute_schedule
 
 app = Flask(__name__)
 
+CURRENCY_OPTIONS = {
+    'PLN': {'label': 'Polish z?oty', 'prefix': '', 'suffix': ' z?'},
+    'USD': {'label': 'US dollar', 'prefix': '$', 'suffix': ''},
+    'EUR': {'label': 'Euro', 'prefix': '?', 'suffix': ''},
+    'GBP': {'label': 'British pound', 'prefix': '?', 'suffix': ''},
+}
 
 def parse_form_list(value: str) -> list[str]:
     """Parse a comma or whitespace separated list of entries from a form field.
@@ -24,8 +30,16 @@ def parse_form_list(value: str) -> list[str]:
 def index():
     summary = None
     schedule = None
+    full_schedule = None
     error = None
+    show_full_schedule = False
+    currency_code = "PLN"
+
     if request.method == "POST":
+        currency_code = request.form.get("currency", "PLN").upper()
+        if currency_code not in CURRENCY_OPTIONS:
+            currency_code = "PLN"
+        show_full_schedule = request.form.get("show_full_schedule") == "1"
         try:
             principal = request.form.get("principal", "").strip()
             rate = float(request.form.get("rate", 0.0))
@@ -55,17 +69,30 @@ def index():
             )
             sched, summ = compute_schedule(config)
             summary = summ
-            # Show only first 120 rows to avoid huge tables
-            schedule = sched[:120]
-            if len(sched) > 120:
-                summary["truncated"] = len(sched) - 120
+            full_schedule = sched
+            if show_full_schedule:
+                schedule = sched
+                summary.pop("truncated", None)
+            else:
+                schedule = sched[:120]
+                if len(sched) > 120:
+                    summary["truncated"] = len(sched) - len(schedule)
         except Exception as exc:
             error = str(exc)
+
+    currency_meta = CURRENCY_OPTIONS.get(currency_code, CURRENCY_OPTIONS["PLN"])
+
     return render_template(
         "index.html",
         summary=summary,
         schedule=schedule,
+        full_schedule=full_schedule,
+        show_full_schedule=show_full_schedule,
         error=error,
+        currency_code=currency_code,
+        currency_options=CURRENCY_OPTIONS,
+        currency_prefix=currency_meta["prefix"],
+        currency_suffix=currency_meta["suffix"],
     )
 
 
