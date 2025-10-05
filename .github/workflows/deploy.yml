@@ -70,6 +70,22 @@ jobs:
       #   run: |
       #     docker push "${IMAGE_REPO}:${IMAGE_TAG}"
 
+      - name: Clear stale compose network (only on push)
+        if: github.event_name == 'push'
+        run: |
+          NETWORK_NAME="${COMPOSE_PROJECT_NAME}_default"
+          if docker network inspect "$NETWORK_NAME" > /tmp/network.inspect 2>/dev/null; then
+            LABEL=$(docker network inspect "$NETWORK_NAME" --format '{{ index .Labels "com.docker.compose.network" }}' 2>/dev/null || true)
+            if [ "${LABEL:-missing}" != "default" ]; then
+              echo "Removing stale compose network $NETWORK_NAME (label=${LABEL:-missing})"
+              docker network rm "$NETWORK_NAME" || true
+            else
+              echo "Compose network $NETWORK_NAME already has correct label"
+            fi
+          else
+            echo "Compose network $NETWORK_NAME not present"
+          fi
+
       - name: Deploy updated compose stack (only on push)
         if: github.event_name == 'push'
         run: |
