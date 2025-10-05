@@ -24,7 +24,9 @@ def parse_form_list(value: str) -> list[str]:
 def index():
     summary = None
     schedule = None
+    full_schedule = None
     error = None
+    show_full_schedule = False
     if request.method == "POST":
         try:
             principal = request.form.get("principal", "").strip()
@@ -39,6 +41,7 @@ def index():
             holiday_list = parse_form_list(request.form.get("holidays", ""))
             monthly_overpayment = request.form.get("monthly_overpayment", "").strip() or None
             constant_payment = request.form.get("constant_payment", "").strip() or None
+            show_full_schedule = request.form.get("show_full_schedule") == "1"
 
             config = build_config_from_options(
                 principal,
@@ -55,16 +58,22 @@ def index():
             )
             sched, summ = compute_schedule(config)
             summary = summ
-            # Show only first 120 rows to avoid huge tables
-            schedule = sched[:120]
-            if len(sched) > 120:
-                summary["truncated"] = len(sched) - 120
+            full_schedule = sched
+            if show_full_schedule:
+                schedule = sched
+                summary.pop("truncated", None)
+            else:
+                schedule = sched[:120]
+                if len(sched) > 120:
+                    summary["truncated"] = len(sched) - len(schedule)
         except Exception as exc:
             error = str(exc)
     return render_template(
         "index.html",
         summary=summary,
         schedule=schedule,
+        full_schedule=full_schedule,
+        show_full_schedule=show_full_schedule,
         error=error,
     )
 

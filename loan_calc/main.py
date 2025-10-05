@@ -29,6 +29,7 @@ def parse_amount(value: str) -> float:
     (e.g., "500k" meaning 500_000). Returns a float.
     """
     value = value.strip().lower()
+    value = value.replace(",", "")
     factor = 1.0
     if value.endswith("k"):
         factor = 1_000.0
