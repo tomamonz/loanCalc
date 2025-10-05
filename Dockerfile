@@ -19,4 +19,4 @@ USER appuser
 
 EXPOSE 8710
 
-CMD ["python", "loan_calc_web/server.py"]
+CMD ["python", "-m", "loan_calc_web.app"]

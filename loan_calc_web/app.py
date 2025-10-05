@@ -1,6 +1,6 @@
+import os
 from flask import Flask, render_template, request
 from decimal import Decimal
-from pathlib import Path
 
 from loan_calc.main import build_config_from_options
 from loan_calc.engine import compute_schedule
@@ -97,4 +97,7 @@ def index():
 
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=8710, debug=True)
+    host = os.environ.get("HOST", "0.0.0.0")
+    port = int(os.environ.get("PORT", "8710"))
+    debug = os.environ.get("FLASK_DEBUG", "0") == "1"
+    app.run(host=host, port=port, debug=debug)
