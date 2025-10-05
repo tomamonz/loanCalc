@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -49,13 +49,13 @@
                                 </label>
                                 <div class="input-group">
                                     <input type="text" id="principal" name="principal" class="form-input" placeholder="500000" value="{{ request.form.get('principal', '500000') }}" required>
-                                    <span class="input-suffix">$</span>
+                                    <span class="input-suffix">PLN</span>
                                 </div>
                                 <div class="quick-amounts">
-                                    <button type="button" class="quick-amount" data-value="250000">$250K</button>
-                                    <button type="button" class="quick-amount" data-value="500000">$500K</button>
-                                    <button type="button" class="quick-amount" data-value="750000">$750K</button>
-                                    <button type="button" class="quick-amount" data-value="1000000">$1M</button>
+                                    <button type="button" class="quick-amount" data-value="250000">250K PLN</button>
+                                    <button type="button" class="quick-amount" data-value="500000">500 PLN</button>
+                                    <button type="button" class="quick-amount" data-value="750000">750K PLN</button>
+                                    <button type="button" class="quick-amount" data-value="1000000">1M PLN</button>
                                 </div>
                             </div>
 
@@ -114,7 +114,7 @@
                                 </label>
                                 <div class="input-group">
                                     <input type="text" id="down_payment" name="down_payment" class="form-input" placeholder="100000" value="{{ request.form.get('down_payment', '') }}">
-                                    <span class="input-suffix">$</span>
+                                    <span class="input-suffix">PLN</span>
                                 </div>
                             </div>
 
@@ -159,7 +159,7 @@
                                 </label>
                                 <div class="input-group">
                                     <input type="text" id="constant_payment" name="constant_payment" class="form-input" placeholder="4000" value="{{ request.form.get('constant_payment', '') }}">
-                                    <span class="input-suffix">$</span>
+                                    <span class="input-suffix">PLN</span>
                                 </div>
                             </div>
 
@@ -193,21 +193,21 @@
                         <div class="summary-grid">
                             <div class="metric-card">
                                 <p class="metric-label">Highest Payment</p>
-                                <p class="metric-value">${{ '{:,.2f}'.format(summary['max_payment']) }}</p>
+                                <p class="metric-value">{{ '{:,.2f}'.format(summary['max_payment']) }} PLN</p>
                             </div>
                             <div class="metric-card">
                                 <p class="metric-label">Total Interest</p>
-                                <p class="metric-value">${{ '{:,.0f}'.format(summary['total_interest']) }}</p>
+                                <p class="metric-value">{{ '{:,.0f}'.format(summary['total_interest']) }} PLN</p>
                             </div>
                             {% if summary.get('total_overpayment', 0) > 0 %}
                             <div class="metric-card">
                                 <p class="metric-label">Total Overpayments</p>
-                                <p class="metric-value">${{ '{:,.0f}'.format(summary['total_overpayment']) }}</p>
+                                <p class="metric-value">{{ '{:,.0f}'.format(summary['total_overpayment']) }} PLN</p>
                             </div>
                             {% endif %}
                             <div class="metric-card">
                                 <p class="metric-label">Total Cost</p>
-                                <p class="metric-value">${{ '{:,.0f}'.format(summary['total_cost']) }}</p>
+                                <p class="metric-value">{{ '{:,.0f}'.format(summary['total_cost']) }} PLN</p>
                             </div>
                             <div class="metric-card">
                                 <p class="metric-label">Payments Made</p>
@@ -225,13 +225,13 @@
                         <div class="impact-grid">
                             <div class="impact-card">
                                 <span class="impact-label">Interest savings vs baseline</span>
-                                <span class="impact-value">${{ '{:,.0f}'.format(summary.comparison.interest_saved) }}</span>
-                                <span class="impact-meta">Baseline total interest ${{ '{:,.0f}'.format(summary.comparison.baseline_total_interest) }}</span>
+                                <span class="impact-value">{{ '{:,.0f}'.format(summary.comparison.interest_saved) }} PLN</span>
+                                <span class="impact-meta">Baseline total interest {{ '{:,.0f}'.format(summary.comparison.baseline_total_interest) }} PLN</span>
                             </div>
                             <div class="impact-card">
                                 <span class="impact-label">Total cash savings</span>
-                                <span class="impact-value">${{ '{:,.0f}'.format(summary.comparison.total_cost_saved) }}</span>
-                                <span class="impact-meta">Baseline total cost ${{ '{:,.0f}'.format(summary.comparison.baseline_total_cost) }}</span>
+                                <span class="impact-value">{{ '{:,.0f}'.format(summary.comparison.total_cost_saved) }} PLN</span>
+                                <span class="impact-meta">Baseline total cost {{ '{:,.0f}'.format(summary.comparison.baseline_total_cost) }} PLN</span>
                             </div>
                             {% if summary.comparison.months_saved %}
                             <div class="impact-card">
@@ -270,11 +270,11 @@
                                     <tr class="schedule-row{% if row.holiday %} schedule-row--holiday{% elif row.overpayment > 0 %} schedule-row--overpay{% endif %}">
                                         <td>{{ row.period }}</td>
                                         <td>{{ row.date.strftime('%Y-%m') }}</td>
-                                        <td>${{ '{:,.2f}'.format(row.payment) }}</td>
-                                        <td>${{ '{:,.2f}'.format(row.principal_payment) }}</td>
-                                        <td>${{ '{:,.2f}'.format(row.interest_payment) }}</td>
-                                        <td>{% if row.overpayment > 0 %}${{ '{:,.2f}'.format(row.overpayment) }}{% else %}-{% endif %}</td>
-                                        <td>${{ '{:,.0f}'.format(row.ending_balance) }}</td>
+                                        <td>{{ '{:,.2f}'.format(row.payment) }} PLN</td>
+                                        <td>{{ '{:,.2f}'.format(row.principal_payment) }} PLN</td>
+                                        <td>{{ '{:,.2f}'.format(row.interest_payment) }} PLN</td>
+                                        <td>{% if row.overpayment > 0 %}{{ '{:,.2f}'.format(row.overpayment) }} PLN{% else %}-{% endif %}</td>
+                                        <td>{{ '{:,.0f}'.format(row.ending_balance) }} PLN</td>
                                         <td>{% if row.holiday %}Yes{% else %}No{% endif %}</td>
                                     </tr>
                                     {% endfor %}
@@ -452,7 +452,7 @@
                         y: {
                             stacked: true,
                             ticks: {
-                                callback: value => '$' + value.toLocaleString()
+                                callback: value => 'PLN' + value.toLocaleString()
                             }
                         }
                     },
@@ -500,7 +500,7 @@
                         data: balanceData,
                         borderColor: '#2563eb',
                         backgroundColor: 'rgba(37, 99, 235, 0.08)',
-                        borderWidth: 3,
+                        borderWidth: 0.1,
                         fill: true,
                         tension: 0.15
                     }]
@@ -526,7 +526,7 @@
                         y: {
                             title: { display: true, text: 'Remaining Balance' },
                             ticks: {
-                                callback: value => '$' + value.toLocaleString()
+                                callback: value =>  value.toLocaleString() + ' PLN'
                             },
                             grid: { color: 'rgba(226, 232, 240, 0.5)' }
                         }
