@@ -10,9 +10,9 @@
   --accent: #0ea5e9;
   --warning: #fbbf24;
   --error: #d1434b;
-  --text-primary: #1b2333;
-  --text-secondary: #4a5568;
-  --text-muted: #8a94a8;
+  --text-primary: #0f285a;
+  --text-secondary: #4f83cc;
+  --text-muted: #c8cfdf;
   --shadow-sm: 0 1px 3px rgba(17, 24, 39, 0.08);
   --shadow-md: 0 10px 28px rgba(15, 23, 42, 0.08);
   --shadow-lg: 0 24px 48px rgba(15, 23, 42, 0.1);
@@ -551,7 +551,7 @@ select.form-input:focus {
 .schedule-table th,
 .schedule-table td {
   text-align: left;
-  padding: 0.2rem 1rem;
+  padding: 0.2rem 0.3rem;
   border-bottom: 1px solid rgba(226, 232, 240, 0.7);
 }
 
