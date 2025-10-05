@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -33,7 +33,14 @@
 
                     <form method="POST" id="loanForm" class="loan-form">
                         <input type="hidden" name="show_full_schedule" id="show_full_schedule" value="{{ "1" if show_full_schedule else "0" }}">
-
+                        {% set monthly_raw = request.form.get('monthly_overpayment', '') %}
+                        {% if monthly_raw and ':' in monthly_raw %}
+                            {% set monthly_value_prefill = monthly_raw.split(':')[0] %}
+                            {% set monthly_type_prefill = monthly_raw.split(':')[1] %}
+                        {% else %}
+                            {% set monthly_value_prefill = monthly_raw %}
+                            {% set monthly_type_prefill = 'term' %}
+                        {% endif %}
                         <div class="form-section">
                             <div class="section-heading">
                                 <h3 class="section-title">Scenario Inputs</h3>
@@ -141,12 +148,19 @@
                             <div class="form-group">
                                 <label class="form-label with-tooltip">
                                     <span>Monthly Overpayment</span>
-                                    <span class="tooltip" data-tooltip="AMOUNT:TYPE - applies every month">
+                                    <span class="tooltip" data-tooltip="Recurring extra payment applied each month">
                                         <span class="tooltip-icon" aria-hidden="true">i</span>
                                     </span>
                                 </label>
-                                <div class="input-group">
-                                    <input type="text" id="monthly_overpayment" name="monthly_overpayment" class="form-input" placeholder="500:term" value="{{ request.form.get('monthly_overpayment', '') }}">
+                                <div class="form-grid">
+                                    <div class="input-group">
+                                        <input type="number" step="0.01" min="0" id="monthly_overpayment_value" name="monthly_overpayment_value" class="form-input" placeholder="500" value="{{ monthly_value_prefill }}">
+                                        <span class="input-suffix">PLN</span>
+                                    </div>
+                                    <select id="monthly_overpayment_type" name="monthly_overpayment_type" class="form-input">
+                                        <option value="term" {% if monthly_type_prefill == 'term' %}selected{% endif %}>Reduce term</option>
+                                        <option value="installment" {% if monthly_type_prefill == 'installment' %}selected{% endif %}>Reduce installment</option>
+                                    </select>
                                 </div>
                             </div>
 
@@ -305,7 +319,14 @@
         // State management
         let currentChart = null;
         let currentBalanceChart = null;
+        const monthlyValueInput = document.getElementById('monthly_overpayment_value');
+        const monthlyTypeSelect = document.getElementById('monthly_overpayment_type');
+        const monthlyHiddenInput = document.getElementById('monthly_overpayment_hidden');
 
+        function syncMonthlyOverpayment() {
+            const rawValue = monthlyValueInput ? monthlyValueInput.value.trim() : '';
+            const selectedType = monthlyTypeSelect ? monthlyTypeSelect.value : 'term';
+        }
         // Initialize app
         document.addEventListener('DOMContentLoaded', function() {
             setupEventListeners();
