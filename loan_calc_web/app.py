@@ -1,6 +1,6 @@
-from flask import Flask, render_template, request
+from dataclasses import asdict
 from decimal import Decimal
-from pathlib import Path
+from flask import Flask, render_template, request
 
 from loan_calc.main import build_config_from_options
 from loan_calc.engine import compute_schedule
@@ -56,9 +56,19 @@ def index():
             sched, summ = compute_schedule(config)
             summary = summ
             # Show only first 120 rows to avoid huge tables
-            schedule = sched[:120]
-            if len(sched) > 120:
-                summary["truncated"] = len(sched) - 120
+            max_rows = 120
+            schedule_rows = []
+            for entry in sched[:max_rows]:
+                row = asdict(entry)
+                # Format values for display in the template.
+                row["date"] = entry.date.strftime("%Y-%m")
+                for key, value in list(row.items()):
+                    if isinstance(value, Decimal):
+                        row[key] = f"{value:.2f}"
+                schedule_rows.append(row)
+            schedule = schedule_rows
+            if len(sched) > max_rows:
+                summary["truncated"] = len(sched) - max_rows
         except Exception as exc:
             error = str(exc)
     return render_template(
