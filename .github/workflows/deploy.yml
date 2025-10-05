@@ -1,91 +1,92 @@
 name: Deploy to Server
 
 on:
-    push:
-        branches:
-            - "master"
-            - "modern-frontend"
-    pull_request:
-        branches:
-            - "master"
+  push:
+    branches:
+      - "master"
+      - "modern-frontend"
+      - "fixing-deployment"
+  pull_request:
+    branches:
+      - "master"
 
 permissions:
-    contents: read
+  contents: read
 
 concurrency:
-    group: deploy-calc-stack
-    cancel-in-progress: true
+  group: deploy-calc-stack
+  cancel-in-progress: true
 
 defaults:
-    run:
-        shell: "bash -euo pipefail {0}"
+  run:
+    shell: "bash -euo pipefail {0}"
 
 jobs:
-    deploy:
-        runs-on: self-hosted
-        env:
-            # Build/deploy context on the server
-            APP_PATH: /opt/calc_app
-            COMPOSE_PROJECT_NAME: calc_app
+  deploy:
+    runs-on: self-hosted
+    env:
+      # Build/deploy context on the server
+      APP_PATH: /opt/calc_app
+      COMPOSE_PROJECT_NAME: calc_app
 
-            # Image ref injected into compose
-            IMAGE_REPO: loan-calc-app # change if you push to a registry, e.g. ghcr.io/OWNER/loan-calc-app
-            IMAGE_TAG: latest # you can switch to ${{ github.sha }} for immutable tags later
+      # Image ref injected into compose
+      IMAGE_REPO: loan-calc-app # change if you push to a registry, e.g. ghcr.io/OWNER/loan-calc-app
+      IMAGE_TAG: latest # you can switch to ${{ github.sha }} for immutable tags later
 
-        steps:
-            - name: Checkout
-              uses: actions/checkout@v4
-              with:
-                  fetch-depth: 0
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-            - name: Sync build context to ${APP_PATH}
-              run: |
-                  echo "Syncing to ${APP_PATH}"
-                  mkdir -p "${APP_PATH}"
-                  # ensure no repo metadata bloats build context
-                  rm -rf "${APP_PATH}/.git" || true
-                  rsync -a --delete --delete-excluded \
-                    --exclude '.git' \
-                    "${{ github.workspace }}/" "${APP_PATH}/"
+      - name: Sync build context to ${APP_PATH}
+        run: |
+          echo "Syncing to ${APP_PATH}"
+          mkdir -p "${APP_PATH}"
+          # ensure no repo metadata bloats build context
+          rm -rf "${APP_PATH}/.git" || true
+          rsync -a --delete --delete-excluded \
+            --exclude '.git' \
+            "${{ github.workspace }}/" "${APP_PATH}/"
 
-            - name: Verify context contents
-              run: |
-                  echo "Listing ${APP_PATH}:"
-                  ls -la "${APP_PATH}"
-                  echo "Dockerfile bytes:"; wc -c "${APP_PATH}/Dockerfile" || true
-                  echo "docker-compose.yml bytes:"; wc -c "${APP_PATH}/docker-compose.yml" || true
+      - name: Verify context contents
+        run: |
+          echo "Listing ${APP_PATH}:"
+          ls -la "${APP_PATH}"
+          echo "Dockerfile bytes:"; wc -c "${APP_PATH}/Dockerfile" || true
+          echo "docker-compose.yml bytes:"; wc -c "${APP_PATH}/docker-compose.yml" || true
 
-            - name: Build image (${IMAGE_REPO}:${IMAGE_TAG})
-              run: |
-                  docker build --pull \
-                    -f "${APP_PATH}/Dockerfile" \
-                    -t "${IMAGE_REPO}:${IMAGE_TAG}" \
-                    "${APP_PATH}"
+      - name: Build image (${IMAGE_REPO}:${IMAGE_TAG})
+        run: |
+          docker build --pull \
+            -f "${APP_PATH}/Dockerfile" \
+            -t "${IMAGE_REPO}:${IMAGE_TAG}" \
+            "${APP_PATH}"
 
-            # If you push to a registry for multi-node Swarm, uncomment:
-            # - name: Docker login
-            #   run: echo "${{ secrets.REGISTRY_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
-            # - name: Push image
-            #   run: |
-            #     docker push "${IMAGE_REPO}:${IMAGE_TAG}"
+      # If you push to a registry for multi-node Swarm, uncomment:
+      # - name: Docker login
+      #   run: echo "${{ secrets.REGISTRY_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+      # - name: Push image
+      #   run: |
+      #     docker push "${IMAGE_REPO}:${IMAGE_TAG}"
 
-            - name: Deploy updated compose stack (only on push)
-              if: github.event_name == 'push'
-              run: |
-                  export IMAGE_REPO IMAGE_TAG
-                  docker compose \
-                    --project-directory "${APP_PATH}" \
-                    -f "${APP_PATH}/docker-compose.yml" \
-                    up -d --build --force-recreate --remove-orphans
+      - name: Deploy updated compose stack (only on push)
+        if: github.event_name == 'push'
+        run: |
+          export IMAGE_REPO IMAGE_TAG
+          docker compose \
+            --project-directory "${APP_PATH}" \
+            -f "${APP_PATH}/docker-compose.yml" \
+            up -d --build --force-recreate --remove-orphans
 
-            - name: Verify containers (only on push)
-              if: github.event_name == 'push'
-              run: |
-                  docker compose \
-                    --project-directory "${APP_PATH}" \
-                    -f "${APP_PATH}/docker-compose.yml" \
-                    ps
+      - name: Verify containers (only on push)
+        if: github.event_name == 'push'
+        run: |
+          docker compose \
+            --project-directory "${APP_PATH}" \
+            -f "${APP_PATH}/docker-compose.yml" \
+            ps
 
-            - name: Cleanup dangling images
-              run: |
-                  docker image prune -f || true
+      - name: Cleanup dangling images
+        run: |
+          docker image prune -f || true
