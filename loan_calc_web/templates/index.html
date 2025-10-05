@@ -60,7 +60,7 @@
                                 </div>
                                 <div class="quick-amounts">
                                     <button type="button" class="quick-amount" data-value="250000">250K PLN</button>
-                                    <button type="button" class="quick-amount" data-value="500000">500 PLN</button>
+                                    <button type="button" class="quick-amount" data-value="500000">500K PLN</button>
                                     <button type="button" class="quick-amount" data-value="750000">750K PLN</button>
                                     <button type="button" class="quick-amount" data-value="1000000">1M PLN</button>
                                 </div>
@@ -162,6 +162,7 @@
                                         <option value="installment" {% if monthly_type_prefill == 'installment' %}selected{% endif %}>Reduce installment</option>
                                     </select>
                                 </div>
+                                <input type="hidden" id="monthly_overpayment_hidden" name="monthly_overpayment" value="{{ monthly_raw }}">
                             </div>
 
                             <div class="form-group">
@@ -324,14 +325,19 @@
         const monthlyHiddenInput = document.getElementById('monthly_overpayment_hidden');
 
         function syncMonthlyOverpayment() {
+            if (!monthlyHiddenInput) {
+                return;
+            }
             const rawValue = monthlyValueInput ? monthlyValueInput.value.trim() : '';
             const selectedType = monthlyTypeSelect ? monthlyTypeSelect.value : 'term';
+            monthlyHiddenInput.value = rawValue ? `${rawValue}:${selectedType}` : '';
         }
         // Initialize app
         document.addEventListener('DOMContentLoaded', function() {
             setupEventListeners();
             setupProgressiveDisclosure();
             setupSmartDefaults();
+            syncMonthlyOverpayment();
 
             // Initialize charts if we have data
             {% if full_schedule %}
@@ -345,6 +351,7 @@
             const showFullInput = document.getElementById('show_full_schedule');
             if (loanForm) {
                 loanForm.addEventListener('submit', function() {
+                    syncMonthlyOverpayment();
                     if (!loanForm.dataset.forceFull && showFullInput) {
                         showFullInput.value = '0';
                     }
@@ -376,6 +383,14 @@
                 });
             });
 
+            if (monthlyValueInput) {
+                monthlyValueInput.addEventListener('input', syncMonthlyOverpayment);
+                monthlyValueInput.addEventListener('change', syncMonthlyOverpayment);
+            }
+            if (monthlyTypeSelect) {
+                monthlyTypeSelect.addEventListener('change', syncMonthlyOverpayment);
+            }
+
             // Tab switching
             document.querySelectorAll('.tab-button').forEach(btn => {
                 btn.addEventListener('click', function() { switchTab(this.getAttribute('data-tab')); });
@@ -398,6 +413,7 @@
             const showFullButton = document.getElementById('showFullScheduleBtn');
             if (showFullButton && loanForm && showFullInput) {
                 showFullButton.addEventListener('click', function() {
+                    syncMonthlyOverpayment();
                     showFullInput.value = '1';
                     loanForm.dataset.forceFull = '1';
                     if (typeof loanForm.requestSubmit === 'function') {
