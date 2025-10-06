@@ -5,7 +5,7 @@ on:
     branches:
       - "master"
       - "modern-frontend"
-      - "fixing-deployment"
+      - "adjusting-displayed-data"
   pull_request:
     branches:
       - "master"
