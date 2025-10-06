@@ -1,19 +1,11 @@
 services:
   calc_app:
-    image: ${IMAGE_REPO}:${IMAGE_TAG}
+    build:
+      context: .
+    image: ${IMAGE_REPO:-loan-calc}:${IMAGE_TAG:-latest}
     ports:
-      - target: 8710
-        published: 8710
-        protocol: tcp
-        mode: ingress
+      - "8710:8710"
     environment:
-      - HOST=0.0.0.0
-      - PORT=8710
-    deploy:
-      resources:
-        limits:
-          cpus: "0.50"
-          memory: "512M"
-        reservations:
-          cpus: "0.10"
-          memory: "128M"
+      HOST: 0.0.0.0
+      PORT: 8710
+      ASSET_VERSION: ${ASSET_VERSION:-1}
