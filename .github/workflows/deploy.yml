@@ -34,6 +34,7 @@ jobs:
       IMAGE_TAG: latest # you can switch to ${{ github.sha }} for immutable tags later
       ASSET_VERSION: latest
       FLASK_SECRET_KEY: ${{ secrets.FLASK_SECRET_KEY || 'dev-secret-key' }}
+      COMPARISON_DATABASE_URL: ${{ secrets.COMPARISON_DATABASE_URL || 'sqlite:///comparison_data.sqlite3' }}
 
     steps:
       - name: Checkout

@@ -5,10 +5,12 @@ from flask import Flask, render_template, request, session, redirect, url_for
 
 from loan_calc.main import build_config_from_options
 from loan_calc.engine import compute_schedule
+from loan_calc_web.comparison_store import create_store_from_env
 
 app = Flask(__name__)
 app.config["ASSET_VERSION"] = os.environ.get("ASSET_VERSION", "1")
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "dev-secret-key")
+comparison_store = create_store_from_env(os.environ.get("COMPARISON_DATABASE_URL"))
 
 CURRENCY_OPTIONS = {
     'PLN': {'label': 'Polish z?oty', 'prefix': '', 'suffix': ' z?'},
@@ -47,21 +49,6 @@ def _serialize_schedule(schedule):
     return serialized
 
 
-def _store_comparison_scenario(name: str, summary: dict, schedule: list[dict]) -> None:
-    comparison_summary = {k: v for k, v in summary.items() if k != "comparison"}
-    scenarios = session.get("comparison_scenarios", [])
-    scenarios.append(
-        {
-            "id": str(uuid4()),
-            "name": name,
-            "summary": comparison_summary,
-            "schedule": schedule,
-        }
-    )
-    session["comparison_scenarios"] = scenarios
-    session.modified = True
-
-
 @app.route("/", methods=["GET", "POST"])
 def index():
     summary = None
@@ -71,6 +58,12 @@ def index():
     show_full_schedule = False
     currency_code = "PLN"
     action = "run"
+
+    user_token = session.get("user_token")
+    if not user_token:
+        user_token = uuid4().hex
+        session["user_token"] = user_token
+        session.modified = True
 
     if request.method == "POST":
         action = request.form.get("action", "run")
@@ -118,15 +111,22 @@ def index():
             if summary and action == "add_to_comparison":
                 scenario_name = request.form.get("scenario_name", "").strip()
                 if not scenario_name:
-                    scenarios = session.get("comparison_scenarios", [])
-                    scenario_name = f"Scenario {len(scenarios) + 1}"
+                    scenario_name = "Scenario"
+                scenario_id = uuid4().hex
                 serialized_schedule = _serialize_schedule(full_schedule or [])
-                _store_comparison_scenario(scenario_name, summary, serialized_schedule)
+                summary_copy = {k: v for k, v in summary.items() if k not in {"comparison", "truncated"}}
+                comparison_store.add_scenario(
+                    user_token,
+                    scenario_id,
+                    scenario_name,
+                    summary_copy,
+                    serialized_schedule,
+                )
         except Exception as exc:
             error = str(exc)
 
     currency_meta = CURRENCY_OPTIONS.get(currency_code, CURRENCY_OPTIONS["PLN"])
-    comparison_scenarios = session.get("comparison_scenarios", [])
+    comparison_scenarios = comparison_store.list_scenarios(user_token)
     comparison_payload = json.dumps(comparison_scenarios)
     current_schedule_payload = json.dumps(_serialize_schedule(full_schedule or [])) if full_schedule else "null"
 
@@ -152,19 +152,15 @@ def index():
 @app.post("/comparison/remove")
 def remove_comparison():
     scenario_id = request.form.get("scenario_id")
-    scenarios = session.get("comparison_scenarios", [])
-    if scenario_id and scenarios:
-        scenarios = [s for s in scenarios if s.get("id") != scenario_id]
-        session["comparison_scenarios"] = scenarios
-        session.modified = True
+    user_token = session.get("user_token")
+    comparison_store.remove_scenario(user_token, scenario_id)
     return redirect(url_for("index"))
 
 
 @app.post("/comparison/clear")
 def clear_comparisons():
-    if "comparison_scenarios" in session:
-        session.pop("comparison_scenarios")
-        session.modified = True
+    user_token = session.get("user_token")
+    comparison_store.clear_scenarios(user_token)
     return redirect(url_for("index"))
 
 
