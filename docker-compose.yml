@@ -3,9 +3,11 @@ services:
     build:
       context: .
     image: ${IMAGE_REPO:-loan-calc}:${IMAGE_TAG:-latest}
+    restart: unless-stopped
     ports:
       - "8710:8710"
     environment:
       HOST: 0.0.0.0
       PORT: 8710
       ASSET_VERSION: ${ASSET_VERSION:-1}
+      FLASK_SECRET_KEY: ${FLASK_SECRET_KEY:-dev-secret-key}
