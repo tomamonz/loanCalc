@@ -19,6 +19,76 @@ CURRENCY_OPTIONS = {
     'GBP': {'label': 'British pound', 'prefix': '?', 'suffix': ''},
 }
 
+
+def _ensure_user_token() -> str:
+    token = session.get("user_token")
+    if not token:
+        token = uuid4().hex
+        session["user_token"] = token
+        session.modified = True
+    return token
+
+
+def _normalized_currency(form) -> str:
+    code = form.get("currency", "PLN").upper()
+    return code if code in CURRENCY_OPTIONS else "PLN"
+
+
+def _form_to_config(form):
+    principal = form.get("principal", "").strip()
+    rate = float(form.get("rate", 0.0))
+    term = int(form.get("term", 0))
+    loan_type = form.get("loan_type", "annuity")
+    start_date = form.get("start_date", "")
+    down_payment = form.get("down_payment", "").strip() or None
+    tranche_list = parse_form_list(form.get("tranches", ""))
+    overpayment_list = parse_form_list(form.get("overpayments", ""))
+    holiday_list = parse_form_list(form.get("holidays", ""))
+    monthly_overpayment = form.get("monthly_overpayment", "").strip() or None
+    constant_payment = form.get("constant_payment", "").strip() or None
+
+    return build_config_from_options(
+        principal,
+        rate,
+        term,
+        loan_type,
+        start_date,
+        down_payment,
+        tuple(tranche_list),
+        tuple(overpayment_list),
+        tuple(holiday_list),
+        monthly_overpayment,
+        constant_payment,
+    )
+
+
+def _summaries_for_view(summary: dict, schedule: list, show_full_schedule: bool):
+    if not summary:
+        return summary, []
+    if show_full_schedule:
+        summary.pop("truncated", None)
+        return summary, schedule
+    preview = schedule[:120]
+    if len(schedule) > 120:
+        summary["truncated"] = len(schedule) - len(preview)
+    return summary, preview
+
+
+def _run_analysis(form, show_full_schedule: bool):
+    config = _form_to_config(form)
+    full_schedule, summary = compute_schedule(config)
+    serialized_schedule = _serialize_schedule(full_schedule)
+    summary, schedule_view = _summaries_for_view(summary, full_schedule, show_full_schedule)
+    return summary, schedule_view, full_schedule, serialized_schedule
+
+
+def _handle_save_action(user_token: str, form, summary: dict, serialized_schedule: list[dict]) -> None:
+    scenario_name = form.get("scenario_name", "").strip() or "Scenario"
+    scenario_id = uuid4().hex
+    summary_copy = {k: v for k, v in summary.items() if k not in {"comparison", "truncated"}}
+    comparison_store.add_scenario(user_token, scenario_id, scenario_name, summary_copy, serialized_schedule)
+
+
 def parse_form_list(value: str) -> list[str]:
     """Parse a comma or whitespace separated list of entries from a form field.
 
@@ -59,69 +129,18 @@ def index():
     currency_code = "PLN"
     action = "run"
 
-    user_token = session.get("user_token")
-    if not user_token:
-        user_token = uuid4().hex
-        session["user_token"] = user_token
-        session.modified = True
+    user_token = _ensure_user_token()
 
     if request.method == "POST":
         action = request.form.get("action", "run")
-        currency_code = request.form.get("currency", "PLN").upper()
-        if currency_code not in CURRENCY_OPTIONS:
-            currency_code = "PLN"
+        currency_code = _normalized_currency(request.form)
         show_full_schedule = request.form.get("show_full_schedule") == "1"
         try:
-            principal = request.form.get("principal", "").strip()
-            rate = float(request.form.get("rate", 0.0))
-            term = int(request.form.get("term", 0))
-            loan_type = request.form.get("loan_type", "annuity")
-            start_date = request.form.get("start_date", "")
-            down_payment = request.form.get("down_payment", "").strip() or None
-            # tranches and overpayments as comma/newline separated strings
-            tranche_list = parse_form_list(request.form.get("tranches", ""))
-            overpayment_list = parse_form_list(request.form.get("overpayments", ""))
-            holiday_list = parse_form_list(request.form.get("holidays", ""))
-            monthly_overpayment = request.form.get("monthly_overpayment", "").strip() or None
-            constant_payment = request.form.get("constant_payment", "").strip() or None
-
-            config = build_config_from_options(
-                principal,
-                rate,
-                term,
-                loan_type,
-                start_date,
-                down_payment,
-                tuple(tranche_list),
-                tuple(overpayment_list),
-                tuple(holiday_list),
-                monthly_overpayment,
-                constant_payment,
+            summary, schedule, full_schedule, serialized_schedule = _run_analysis(
+                request.form, show_full_schedule
             )
-            sched, summ = compute_schedule(config)
-            summary = summ
-            full_schedule = sched
-            if show_full_schedule:
-                schedule = sched
-                summary.pop("truncated", None)
-            else:
-                schedule = sched[:120]
-                if len(sched) > 120:
-                    summary["truncated"] = len(sched) - len(schedule)
             if summary and action == "add_to_comparison":
-                scenario_name = request.form.get("scenario_name", "").strip()
-                if not scenario_name:
-                    scenario_name = "Scenario"
-                scenario_id = uuid4().hex
-                serialized_schedule = _serialize_schedule(full_schedule or [])
-                summary_copy = {k: v for k, v in summary.items() if k not in {"comparison", "truncated"}}
-                comparison_store.add_scenario(
-                    user_token,
-                    scenario_id,
-                    scenario_name,
-                    summary_copy,
-                    serialized_schedule,
-                )
+                _handle_save_action(user_token, request.form, summary, serialized_schedule)
         except Exception as exc:
             error = str(exc)
 
@@ -165,4 +184,5 @@ def clear_comparisons():
 
 
 if __name__ == "__main__":
+    print("Starting Loan Calculator web app...")
     app.run(host="0.0.0.0", port=8710, debug=True)
