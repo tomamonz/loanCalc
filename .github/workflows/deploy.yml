@@ -33,6 +33,7 @@ jobs:
       IMAGE_REPO: loan-calc-app # change if you push to a registry, e.g. ghcr.io/OWNER/loan-calc-app
       IMAGE_TAG: latest # you can switch to ${{ github.sha }} for immutable tags later
       ASSET_VERSION: latest
+      FLASK_SECRET_KEY: ${{ secrets.FLASK_SECRET_KEY || 'dev-secret-key' }}
 
     steps:
       - name: Checkout
