@@ -370,6 +370,7 @@
                                         <th>Scenario</th>
                                         <th>Total Cost</th>
                                         <th>Total Interest</th>
+                                        <th>Overpayments</th>
                                         <th>Payoff</th>
                                         <th></th>
                                     </tr>
@@ -383,6 +384,7 @@
                                         </td>
                                         <td>{{ '{:,.0f}'.format(summary['total_cost']) }} PLN</td>
                                         <td>{{ '{:,.0f}'.format(summary['total_interest']) }} PLN</td>
+                                        <td>{{ '{:,.0f}'.format(summary['total_overpayment']) }} PLN</td>
                                         <td>{{ summary['new_end_date'] }}</td>
                                         <td></td>
                                     </tr>
@@ -394,6 +396,7 @@
                                         </td>
                                         <td>{{ '{:,.0f}'.format(scenario.summary.total_cost) }} PLN</td>
                                         <td>{{ '{:,.0f}'.format(scenario.summary.total_interest) }} PLN</td>
+                                        <td>{{ '{:,.0f}'.format(scenario.summary.total_overpayment) }} PLN</td>
                                         <td>{{ scenario.summary.new_end_date }}</td>
                                         <td>
                                             <form action="{{ url_for('remove_comparison') }}" method="post">

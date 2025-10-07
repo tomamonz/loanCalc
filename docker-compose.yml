@@ -11,3 +11,4 @@ services:
       PORT: 8710
       ASSET_VERSION: ${ASSET_VERSION:-1}
       FLASK_SECRET_KEY: ${FLASK_SECRET_KEY:-dev-secret-key}
+      COMPARISON_DATABASE_URL: ${COMPARISON_DATABASE_URL:-sqlite:///comparison_data.sqlite3}
