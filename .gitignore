@@ -1,3 +1,3 @@
 */__pycache__/
 .venv
-*comparison_data.sql*
+comparison_data.sqlite3
